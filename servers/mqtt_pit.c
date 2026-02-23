@@ -391,8 +391,8 @@ void readPublish(uint8_t* buffer, uint32_t packetEnd, uint32_t offset, enum Mqtt
 
     char payload[512] = {0};
     uint32_t payloadLen = packetEnd - offset;
-    uint32_t copyLen = payloadLen < sizeof(payload) - 1 ? payloadLen - 2: sizeof(payload) - 1;
-    memcpy(payload, &buffer[offset], payloadLen < 511 ? payloadLen : 511);
+    uint32_t copyLen = payloadLen < sizeof(payload) - 1 ? payloadLen : sizeof(payload) - 1;
+    memcpy(payload, &buffer[offset], copyLen);
     payload[copyLen] = '\0';
 
     char msg[256];
