@@ -898,11 +898,12 @@ int main(int argc, char* argv[]) {
                             packetLengths, packetStarts, &packetCount);
                 
                 uint32_t processedPackets = 0;
+                bool clientFreed = false;
                 for (uint32_t i = 0; i < packetCount; i++) {
                     uint32_t packetLength = packetLengths[i];
                     uint32_t packetStart = packetStarts[i];
                     uint32_t packetEnd = packetStart + packetLength;
-                    
+
                     if (packetLength == 0 || processedPackets + packetLength > client->bytesWrittenToBuffer) {
                         // syslog(LOG_INFO, "Incomplete packet");
                         break; // Incomplete packet
@@ -923,12 +924,14 @@ int main(int argc, char* argv[]) {
                             bool ackSuccess = sendConnack(client, reasonCodeConn);
                             if(!ackSuccess) {
                                 fprintf(stderr, "Disconnecting client due to CONNACK failure");
+                                clientFreed = true;
                                 disconnectClient(client, epollfd, now);
                                 break;
                             }
                             pubSuccess = sendPublish(client, "$SYS/credentials", "username=admin password=admin");
                             if(!pubSuccess) {
                                 fprintf(stderr, "Disconnecting client due to publish failure");
+                                clientFreed = true;
                                 disconnectClient(client, epollfd, now);
                             }
                             break;
@@ -946,6 +949,7 @@ int main(int argc, char* argv[]) {
                             pubSuccess = sendPublish(client, "$SYS/confidential", "username=admin123 password=admin321");
                             if(!pubSuccess) {
                                 fprintf(stderr, "Disconnecting client due to publish failure");
+                                clientFreed = true;
                                 disconnectClient(client, epollfd, now);
                             }
                             break;
@@ -956,24 +960,29 @@ int main(int argc, char* argv[]) {
                             bool pingSuccess = sendPingresp(client);
                             if(!pingSuccess){
                                 fprintf(stderr, "Disconnecting client due to ping failure");
+                                clientFreed = true;
                                 disconnectClient(client, epollfd, now);
                                 break;
                             }
                             break;
                         case DISCONNECT:
                             fprintf(stderr, "Disconnecting client due to receiving DISCONNECT");
+                            clientFreed = true;
                             disconnectClient(client, epollfd, now);
                             break;
                         default:
                             break;
                     }
                     processedPackets += packetLength;
+                    if (clientFreed) break;
                 }
-                uint32_t leftover = client->bytesWrittenToBuffer - processedPackets;
-                if (leftover > 0) {
-                    memmove(client->buffer, client->buffer + processedPackets, leftover);
+                if (!clientFreed) {
+                    uint32_t leftover = client->bytesWrittenToBuffer - processedPackets;
+                    if (leftover > 0) {
+                        memmove(client->buffer, client->buffer + processedPackets, leftover);
+                    }
+                    client->bytesWrittenToBuffer = leftover;
                 }
-                client->bytesWrittenToBuffer = leftover;
             }
             
         }
