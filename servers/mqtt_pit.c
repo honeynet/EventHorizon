@@ -603,6 +603,10 @@ void readPubrec(uint8_t* buffer, uint32_t packetEnd, uint32_t offset, struct mqt
 bool sendPubrel(struct mqttClient* client, uint16_t packetId) {
     int size = client->version == V5 ? 6 : 4;
     uint8_t* arr = malloc(size);
+    if (!arr) {
+        fprintf(stderr, "MQTT: malloc failed for pubrel packet: %s\n", strerror(errno));
+        return false;
+    }
 
     if(client->version == V5){
         arr[0] = 0b01100010;         // Fixed header
@@ -620,8 +624,9 @@ bool sendPubrel(struct mqttClient* client, uint16_t packetId) {
     }
 
     ssize_t w = write(client->fd, arr, size);
+    free(arr);
     if (w == -1) {
-        fprintf(stderr, "sendPubrel: write failed");
+        fprintf(stderr, "MQTT sendPubrel: write failed: %s\n", strerror(errno));
         return false;
     }
 
@@ -660,13 +665,15 @@ void disconnectClient(struct mqttClient* client, int epollFd, long long now){
     long long wastedTime = now - client->timeOfConnection;
 
     char msg[256];
-    snprintf(msg, sizeof(msg), "%s disconnect %s %lld",
+    snprintf(msg, sizeof(msg), "%s disconnect %s %lld\n",
         SERVER_ID, client->ipaddr, wastedTime);
 
-    printf(msg);
+    printf("%s", msg);
     sendMetric(msg);
 
-    epoll_ctl(epollFd, EPOLL_CTL_DEL, client->fd, NULL);
+    if (epoll_ctl(epollFd, EPOLL_CTL_DEL, client->fd, NULL) == -1) {
+        fprintf(stderr, "MQTT epoll_ctl DEL failed for fd=%d: %s\n", client->fd, strerror(errno));
+    }
     deleteClient(client);
     close(client->fd);
     free(client);
@@ -768,13 +775,23 @@ int main(int argc, char* argv[]) {
     //     SERVER_ID, "82.211.213.247");
     // fprintf(stderr, "%s", msg);
     // sendMetric(msg);
-    (void)argc;
+    if (argc != 7) {
+        fprintf(stderr, "Usage: %s <port> <max_events> <epoll_timeout> <pubrel_interval> <max_packets> <max_clients>\n",
+                argv[0]);
+        exit(EXIT_FAILURE);
+    }
     port = atoi(argv[1]);
     maxEvents = atoi(argv[2]);
     epollTimeoutInterval = atoi(argv[3]);
     pubrelInterval = atoi(argv[4]);
     maxPacketsPerClient = atoi(argv[5]);
     maxNoClients = atoi(argv[6]);
+    if (port <= 0 || port > 65535 || maxEvents <= 0 || epollTimeoutInterval < 0 ||
+        pubrelInterval == 0 || maxPacketsPerClient == 0 || maxNoClients <= 0) {
+        fprintf(stderr, "Error: invalid parameter values. Port must be 1-65535, "
+                "max_events/max_clients must be > 0\n");
+        exit(EXIT_FAILURE);
+    }
     // openlog("mqtt_tarpit", LOG_PID | LOG_CONS, LOG_USER);
     initializeStats();
     setFdLimit(maxNoClients);
@@ -792,14 +809,14 @@ int main(int argc, char* argv[]) {
     struct epoll_event ev, eventsQueue[maxEvents];
     int epollfd = epoll_create1(0);
     if (epollfd == -1) {
-        fprintf(stderr, "epoll_create1 failed");
+        fprintf(stderr, "MQTT epoll_create1 failed: %s\n", strerror(errno));
         exit(EXIT_FAILURE);
     }
 
     ev.events = EPOLLIN;
     ev.data.fd = serverSock;
     if (epoll_ctl(epollfd, EPOLL_CTL_ADD, serverSock, &ev) == -1) {
-        fprintf(stderr, "epoll_ctl: server_sock");
+        fprintf(stderr, "MQTT epoll_ctl ADD server_sock failed: %s\n", strerror(errno));
         exit(EXIT_FAILURE);
     }
 
@@ -814,8 +831,9 @@ int main(int argc, char* argv[]) {
 
         int nfds = epoll_wait(epollfd, eventsQueue, maxEvents, epollTimeoutInterval);
         if (nfds == -1) {
-            fprintf(stderr, "epoll_wait");
-            exit(EXIT_FAILURE);
+            if (errno == EINTR) continue;
+            fprintf(stderr, "MQTT epoll_wait failed: %s\n", strerror(errno));
+            continue;
         }
 
         // Update now, since epoll_wait made the value outdated. 
@@ -830,12 +848,12 @@ int main(int argc, char* argv[]) {
                 }
                 struct mqttClient* newClient = malloc(sizeof(struct mqttClient));
                 if (newClient == NULL) {
-                    fprintf(stderr, "Out of memory");
+                    fprintf(stderr, "MQTT: malloc failed for new client: %s\n", strerror(errno));
                     close(clientFd);
                     continue;
                 }
 
-                
+
                 statsMqtt.totalConnects += 1;
                 newClient->fd = clientFd;
                 strncpy(newClient->ipaddr, inet_ntoa(clientAddr.sin_addr), INET_ADDRSTRLEN);
@@ -847,7 +865,12 @@ int main(int argc, char* argv[]) {
                 memset(newClient->buffer, 0, sizeof(newClient->buffer)); // Maybe not necessary
                 // ev.events = EPOLLIN | EPOLLET;
                 // ev.data.fd = clientFd;
-                fcntl(clientFd, F_SETFL, O_NONBLOCK);
+                if (fcntl(clientFd, F_SETFL, O_NONBLOCK) == -1) {
+                    fprintf(stderr, "MQTT fcntl(O_NONBLOCK) failed: %s\n", strerror(errno));
+                    close(clientFd);
+                    free(newClient);
+                    continue;
+                }
                 struct epoll_event clientEv;
                 clientEv.events = EPOLLIN;
                 clientEv.data.fd = clientFd;
@@ -869,6 +892,12 @@ int main(int argc, char* argv[]) {
                 // }
             } else {
                 struct mqttClient* client = lookupClient(currentFd);
+                if (client == NULL) {
+                    fprintf(stderr, "MQTT: received event for unknown fd=%d, closing\n", currentFd);
+                    epoll_ctl(epollfd, EPOLL_CTL_DEL, currentFd, NULL);
+                    close(currentFd);
+                    continue;
+                }
                 ssize_t bytesRead = read(currentFd,
                           client->buffer + client->bytesWrittenToBuffer, // Avoid overwriting existing data
                           sizeof(client->buffer) - client->bytesWrittenToBuffer);

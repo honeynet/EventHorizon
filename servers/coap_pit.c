@@ -133,18 +133,36 @@ int main(int argc, char* argv[]) {
     //     SERVER_ID, "74.17.158.179");
     // fprintf(stderr, "%s", msg);
     // sendMetric(msg);
-    (void)argc;
+    if (argc != 6) {
+        fprintf(stderr, "Usage: %s <port> <delay> <ack_timeout> <max_retransmit> <max_clients>\n",
+                argv[0]);
+        exit(EXIT_FAILURE);
+    }
     port = atoi(argv[1]);
     delay = atoi(argv[2]);
     ACK_TIMEOUT = atoi(argv[3]);
     MAX_RETRANSMIT = atoi(argv[4]);
     maxNoClients = atoi(argv[5]);
+    if (port <= 0 || port > 65535 || delay < 0 || ACK_TIMEOUT < 0 ||
+        MAX_RETRANSMIT < 0 || maxNoClients <= 0) {
+        fprintf(stderr, "Error: invalid parameter values. Port must be 1-65535, "
+                "delay/ack_timeout/max_retransmit must be >= 0, max_clients must be > 0\n");
+        exit(EXIT_FAILURE);
+    }
+
+    signal(SIGPIPE, SIG_IGN);
     struct sockaddr_in serverAddr;
     heap_init(&clientQueueCoap, maxNoClients);
 
     if ((sockFd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-        fprintf(stderr, "SSDP Socket creation failed");
+        fprintf(stderr, "CoAP socket creation failed: %s\n", strerror(errno));
         exit(EXIT_FAILURE);
+    }
+
+    // Enable SO_REUSEADDR for faster restarts
+    int optval = 1;
+    if (setsockopt(sockFd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)) < 0) {
+        fprintf(stderr, "CoAP setsockopt(SO_REUSEADDR) failed: %s\n", strerror(errno));
     }
 
     // Bind to all interfaces and ports
@@ -160,7 +178,7 @@ int main(int argc, char* argv[]) {
     // setsockopt(sockFd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq));
 
     if (bind(sockFd, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
-        fprintf(stderr, "Bind failed");
+        fprintf(stderr, "CoAP bind failed on port %d: %s\n", port, strerror(errno));
         close(sockFd);
         exit(EXIT_FAILURE);
     }
@@ -188,9 +206,13 @@ int main(int argc, char* argv[]) {
                         c->retransmits += 1;
 
                         if(!c->receivedAck) {
-                            sendCoapBlockResponse(c->messageId, c->token, c->tkl, &c->blockNumber, &c->clientAddr, c->addrLen);
+                            if (sendCoapBlockResponse(c->messageId, c->token, c->tkl, &c->blockNumber, &c->clientAddr, c->addrLen) < 0) {
+                                fprintf(stderr, "CoAP sendCoapBlockResponse failed: %s\n", strerror(errno));
+                            }
                         } else {
-                            sendPing(c->messageId, &c->clientAddr, c->addrLen);
+                            if (sendPing(c->messageId, &c->clientAddr, c->addrLen) < 0) {
+                                fprintf(stderr, "CoAP sendPing failed: %s\n", strerror(errno));
+                            }
                         }
 
                         // printf("Token contents: ");
@@ -236,7 +258,8 @@ int main(int argc, char* argv[]) {
         int pollResult = poll(&pollFd, 1, timeout);
         now = currentTimeMs();
         if (pollResult < 0) {
-            fprintf(stderr, "Poll error with error %s", strerror(errno));
+            if (errno == EINTR) continue;
+            fprintf(stderr, "CoAP poll error: %s\n", strerror(errno));
             continue;
         }
 
@@ -246,8 +269,13 @@ int main(int argc, char* argv[]) {
             char buffer[1024];
 
             int len = recvfrom(sockFd, buffer, MAX_BUF_LEN, 0, (struct sockaddr *)&clientAddr, &addrLen);
+            if (len < 0) {
+                if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) continue;
+                fprintf(stderr, "CoAP recvfrom error: %s\n", strerror(errno));
+                continue;
+            }
             if(len < 4) {
-                // Too short or something went wrong
+                // Too short to be a valid CoAP packet
                 continue;
             }
 
@@ -291,7 +319,9 @@ int main(int argc, char* argv[]) {
                 response[3] = msgId & 0b11111111;
                 int resp_len = 4;
 
-                sendto(sockFd, response, resp_len, 0, (struct sockaddr *)&clientAddr, addrLen);
+                if (sendto(sockFd, response, resp_len, 0, (struct sockaddr *)&clientAddr, addrLen) < 0) {
+                    fprintf(stderr, "CoAP sendto (bad request) failed: %s\n", strerror(errno));
+                }
                 continue;
             } 
             else if (version != 1){
@@ -307,7 +337,7 @@ int main(int argc, char* argv[]) {
             if(client == NULL) {
                 client = malloc(sizeof(struct coapClient));
                 if (!client) {
-                    fprintf(stderr, "Out of memory");
+                    fprintf(stderr, "CoAP: malloc failed for new client: %s\n", strerror(errno));
                     continue;
                 }
 
@@ -355,7 +385,11 @@ int main(int argc, char* argv[]) {
                 ack[3] = buffer[3];                       // Same Message ID LSB
 
                 int out = sendto(sockFd, ack, sizeof(ack), 0, (struct sockaddr *)&clientAddr, addrLen);
-                printf("ACK sendto: %d with messageId=%u\n", out, msgId);
+                if (out < 0) {
+                    fprintf(stderr, "CoAP ACK sendto failed: %s\n", strerror(errno));
+                } else {
+                    printf("ACK sendto: %d with messageId=%u\n", out, msgId);
+                }
             }
         }
     }

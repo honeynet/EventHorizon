@@ -60,10 +60,18 @@ int main(int argc, char *argv[]) {
     //     SERVER_ID, "82.211.213.247");
     // fprintf(stderr, "%s", msg);
     // sendMetric(msg);
-    (void)argc;
+    if (argc != 4) {
+        fprintf(stderr, "Usage: %s <port> <delay> <max_clients>\n", argv[0]);
+        exit(EXIT_FAILURE);
+    }
     port = atoi(argv[1]);
     delay = atoi(argv[2]);
     maxNoClients = atoi(argv[3]);
+    if (port <= 0 || port > 65535 || delay < 0 || maxNoClients <= 0) {
+        fprintf(stderr, "Error: invalid parameter values. Port must be 1-65535, "
+                "delay must be >= 0, max_clients must be > 0\n");
+        exit(EXIT_FAILURE);
+    }
     initializeStats();
     setFdLimit(maxNoClients);
     signal(SIGPIPE, SIG_IGN); // Ignore 
@@ -133,7 +141,8 @@ int main(int argc, char *argv[]) {
         int pollResult = poll(&fds, 1, timeout);
         now = currentTimeMs(); // Poll will cause old value to be misrepresenting
         if (pollResult < 0) {
-            fprintf(stderr, "Poll error with error %s", strerror(errno));
+            if (errno == EINTR) continue;
+            fprintf(stderr, "Telnet poll error: %s\n", strerror(errno));
             continue;
         }
 
@@ -145,10 +154,14 @@ int main(int argc, char *argv[]) {
                 continue;
             }
 
-            fcntl(clientFd, F_SETFL, O_NONBLOCK); // Set non-blocking mode
+            if (fcntl(clientFd, F_SETFL, O_NONBLOCK) == -1) {
+                fprintf(stderr, "Telnet fcntl(O_NONBLOCK) failed: %s\n", strerror(errno));
+                close(clientFd);
+                continue;
+            }
             struct telnetAndUpnpClient* newClient = malloc(sizeof(struct telnetAndUpnpClient));
             if (!newClient) {
-                fprintf(stderr, "Out of memory");
+                fprintf(stderr, "Telnet: malloc failed for new client: %s\n", strerror(errno));
                 close(clientFd);
                 continue;
             }

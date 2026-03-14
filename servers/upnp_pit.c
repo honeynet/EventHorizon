@@ -103,6 +103,10 @@ char* ssdpResponse() {
     char *ipAddress = getLocalIpAddress();
 
     char *responseBuffer = (char*) malloc((512)*sizeof(char));
+    if (!responseBuffer) {
+        fprintf(stderr, "UPnP: malloc failed for SSDP response: %s\n", strerror(errno));
+        return NULL;
+    }
     snprintf(responseBuffer, 512,
         "HTTP/1.1 200 OK\r\n"
         "CACHE-CONTROL: max-age=1800\r\n"
@@ -121,6 +125,10 @@ char* ssdpResponse() {
 void *ssdpListener(void *arg) {
     (void)arg;
     char* response = ssdpResponse();
+    if (!response) {
+        fprintf(stderr, "UPnP: failed to create SSDP response, exiting listener\n");
+        return NULL;
+    }
     int sockFd;
     struct sockaddr_in serverAddr, client_addr;
     socklen_t addrLen = sizeof(client_addr);
@@ -128,9 +136,15 @@ void *ssdpListener(void *arg) {
 
     // printf("response: %s\n", response);
 
-    if ((sockFd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) { // works
-        fprintf(stderr, "SSDP Socket creation failed");
+    if ((sockFd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+        fprintf(stderr, "SSDP socket creation failed: %s\n", strerror(errno));
         exit(EXIT_FAILURE);
+    }
+
+    // Enable SO_REUSEADDR for faster restarts
+    int optval = 1;
+    if (setsockopt(sockFd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)) < 0) {
+        fprintf(stderr, "SSDP setsockopt(SO_REUSEADDR) failed: %s\n", strerror(errno));
     }
 
     // Bind to all interfaces for unicast
@@ -146,7 +160,7 @@ void *ssdpListener(void *arg) {
     // setsockopt(sockFd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq));
 
     if (bind(sockFd, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
-        fprintf(stderr, "SSDP Bind failed");
+        fprintf(stderr, "SSDP bind failed on port %d: %s\n", ssdpPort, strerror(errno));
         close(sockFd);
         exit(EXIT_FAILURE);
     }
@@ -156,21 +170,27 @@ void *ssdpListener(void *arg) {
     while (1) {
         memset(buffer, 0, sizeof(buffer));
 
-        if (recvfrom(sockFd, buffer, sizeof(buffer), 0,
-                     (struct sockaddr *)&client_addr, &addrLen) <= 0) {
-            fprintf(stderr, "Error receiving SSDP request");
+        ssize_t recvLen = recvfrom(sockFd, buffer, sizeof(buffer) - 1, 0,
+                     (struct sockaddr *)&client_addr, &addrLen);
+        if (recvLen < 0) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) continue;
+            fprintf(stderr, "SSDP recvfrom error: %s\n", strerror(errno));
             continue;
         }
+        if (recvLen == 0) continue;
+        buffer[recvLen] = '\0';
 
         char client_ip[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, &client_addr.sin_addr, client_ip, INET_ADDRSTRLEN);
-        
+
         char msg[256];
         int isMSearch = strstr(buffer, "M-SEARCH") != NULL;
 
         if (isMSearch) {
-            sendto(sockFd, response, strlen(response), 0,
-                (struct sockaddr *)&client_addr, sizeof(client_addr));
+            if (sendto(sockFd, response, strlen(response), 0,
+                (struct sockaddr *)&client_addr, sizeof(client_addr)) < 0) {
+                fprintf(stderr, "SSDP sendto failed: %s\n", strerror(errno));
+            }
             
             snprintf(msg, sizeof(msg), "%s M-SEARCH %s\n", 
                 SERVER_ID, client_ip);
@@ -183,7 +203,7 @@ void *ssdpListener(void *arg) {
         sendMetric(msg);
     }
 
-    free(ssdpResponse);
+    free(response);
     close(sockFd);
     return NULL;
 }
@@ -225,8 +245,10 @@ void *httpServer(void *arg) {
 
                 char chunk_size[10];
                 snprintf(chunk_size, sizeof(chunk_size), "%X\r\n", (int)strlen(FAKE_CHUNK));
-                write(c->fd, chunk_size, strlen(chunk_size));
-                write(c->fd, FAKE_CHUNK, strlen(FAKE_CHUNK));
+                if (write(c->fd, chunk_size, strlen(chunk_size)) < 0 ||
+                    write(c->fd, FAKE_CHUNK, strlen(FAKE_CHUNK)) < 0) {
+                    // Will be handled by the final write check below
+                }
                 ssize_t out = write(c->fd, "\r\n", 2);
                 
                 if (out == -1) {
@@ -262,7 +284,8 @@ void *httpServer(void *arg) {
         int pollResult = poll(&fds, 1, timeout);
         now = currentTimeMs(); // Poll will cause old value to be misrepresenting
         if (pollResult < 0) {
-            fprintf(stderr, "Poll error with error %s", strerror(errno));
+            if (errno == EINTR) continue;
+            fprintf(stderr, "UPnP HTTP poll error: %s\n", strerror(errno));
             continue;
         }
 
@@ -274,10 +297,14 @@ void *httpServer(void *arg) {
                 continue;
             }
             statsUpnp.totalHttpRequests += 1;
-            fcntl(clientFd, F_SETFL, O_NONBLOCK); // Set non-blocking mode
+            if (fcntl(clientFd, F_SETFL, O_NONBLOCK) == -1) {
+                fprintf(stderr, "UPnP fcntl(O_NONBLOCK) failed: %s\n", strerror(errno));
+                close(clientFd);
+                continue;
+            }
             struct telnetAndUpnpClient* newClient = malloc(sizeof(struct telnetAndUpnpClient));
             if (newClient == NULL) {
-                fprintf(stderr, "Out of memory");
+                fprintf(stderr, "UPnP: malloc failed for new client: %s\n", strerror(errno));
                 close(clientFd);
                 continue;
             }
@@ -306,10 +333,16 @@ void *httpServer(void *arg) {
                 }
 
                 char chunk_size[10];
-                snprintf(chunk_size, sizeof(FAKE_DEVICE_DESCRIPTION), "%X\r\n", (int)strlen(FAKE_DEVICE_DESCRIPTION));
-                write(clientFd, chunk_size, strlen(chunk_size));
-                write(clientFd, FAKE_DEVICE_DESCRIPTION, strlen(FAKE_DEVICE_DESCRIPTION));
-                write(clientFd, "\r\n", 2);
+                snprintf(chunk_size, sizeof(chunk_size), "%X\r\n", (int)strlen(FAKE_DEVICE_DESCRIPTION));
+                if (write(clientFd, chunk_size, strlen(chunk_size)) < 0 ||
+                    write(clientFd, FAKE_DEVICE_DESCRIPTION, strlen(FAKE_DEVICE_DESCRIPTION)) < 0 ||
+                    write(clientFd, "\r\n", 2) < 0) {
+                    fprintf(stderr, "UPnP: failed to write device description to %s: %s\n",
+                            inet_ntoa(clientAddr.sin_addr), strerror(errno));
+                    close(clientFd);
+                    free(newClient);
+                    continue;
+                }
 
                 newClient->fd = clientFd;
                 newClient->base.sendNext = now + delay;
@@ -372,11 +405,20 @@ int main(int argc, char* argv[]) {
     // SERVER_ID, "82.211.213.247");
     // fprintf(stderr, "%s", msg);
     // sendMetric(msg);
-    (void)argc;
+    if (argc != 5) {
+        fprintf(stderr, "Usage: %s <http_port> <ssdp_port> <delay> <max_clients>\n", argv[0]);
+        exit(EXIT_FAILURE);
+    }
     httpPort = atoi(argv[1]);
     ssdpPort = atoi(argv[2]);
     delay = atoi(argv[3]);
     maxNoClients = atoi(argv[4]);
+    if (httpPort <= 0 || httpPort > 65535 || ssdpPort <= 0 || ssdpPort > 65535 ||
+        delay < 0 || maxNoClients <= 0) {
+        fprintf(stderr, "Error: invalid parameter values. Ports must be 1-65535, "
+                "delay must be >= 0, max_clients must be > 0\n");
+        exit(EXIT_FAILURE);
+    }
     // openlog("upnp_tarpit", LOG_PID | LOG_CONS, LOG_USER);
     initializeStats();
     setFdLimit(maxNoClients);
