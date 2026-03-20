@@ -41,6 +41,13 @@ function showHelp() {
     echo "      - pubrel-interval: Delay in ms for the QoS 2 'Publish Release' handshake."
     echo "      - max-packets: Maximum number of MQTT control packets per session."
     echo "      - max-clients: Total concurrent IoT clients the engine will trap."
+    echo " "
+    echo "  coap <port> <delay> <ack-timeout> <max-retransmit> <max-clients>"
+    echo "      - port: The local port for the CoAP server emulator."
+    echo "      - delay: Delay in ms between CoAP processing cycles."
+    echo "      - ack-timeout: Initial timeout in ms before retransmitting a confirmable message."
+    echo "      - max-retransmit: Maximum retransmission attempts for confirmable CoAP messages."
+    echo "      - max-clients: Total concurrent IoT clients the engine will trap."
 
 }
 
