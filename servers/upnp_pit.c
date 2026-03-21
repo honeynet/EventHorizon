@@ -22,6 +22,15 @@ int ssdpPort;
 int delay;
 int maxNoClients;
 
+// Global flag for graceful shutdown
+static volatile sig_atomic_t keepRunning = 1;
+
+// Signal handler to flip the flag
+void handleSignal(int sig){
+    (void)sig;
+    keepRunning = 0;
+}
+
 // Can use Chunked Transfer Coding from rfc 2616 section 3.6.1
 // Required to be a HTTP GET request (Section 2.1 from specifications)
 const char *FAKE_DEVICE_DESCRIPTION =
@@ -47,7 +56,7 @@ const char *FAKE_DEVICE_DESCRIPTION =
     "    <firmwareVersion>Philips_Hue_2.00.10966.PVT-OWRT-InsightV2</firmwareVersion>\n"
     "    <iconVersion>1|49153</iconVersion>\n"
     "    <binaryState>8</binaryState>\n"
-    "        <iconList>\n" 
+    "        <iconList>\n"
     "    <icon>\n"
     "      <mimetype>jpg</mimetype>\n"
     "      <width>100</width>\n"
@@ -69,7 +78,7 @@ const char *FAKE_CHUNK =
 
 // void heartbeatLog() {
 //     syslog(LOG_INFO, "Server is running with %d connected clients. Number of most concurrent connected clients is %d", clientQueueUpnp.length, statsUpnp.mostConcurrentConnections);
-//     syslog(LOG_INFO, "Current statistics: wasted time: %lld ms. Total HTTP requests: %ld. Total other HTTP requests: %ld. SSDP responses: %ld. XML requests: %ld", 
+//     syslog(LOG_INFO, "Current statistics: wasted time: %lld ms. Total HTTP requests: %ld. Total other HTTP requests: %ld. SSDP responses: %ld. XML requests: %ld",
 //         statsUpnp.totalWastedTime, statsUpnp.totalHttpRequests, statsUpnp.otherHttpRequests, statsUpnp.ssdpResponses, statsUpnp.totalXmlRequests);
 // }
 
@@ -133,6 +142,9 @@ void *ssdpListener(void *arg) {
         exit(EXIT_FAILURE);
     }
 
+    struct timeval tv= {1, 0};
+    setsockopt(sockFd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
     // Bind to all interfaces for unicast
     memset(&serverAddr, 0, sizeof(serverAddr));
     serverAddr.sin_family = AF_INET;
@@ -145,6 +157,11 @@ void *ssdpListener(void *arg) {
     // mreq.imr_interface.s_addr = INADDR_ANY;
     // setsockopt(sockFd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq));
 
+    // Allow multiple sockets to bind to the same port
+    int opt=1;
+    setsockopt(sockFd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    setsockopt(sockFd, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt));
+
     if (bind(sockFd, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
         fprintf(stderr, "SSDP Bind failed");
         close(sockFd);
@@ -153,38 +170,40 @@ void *ssdpListener(void *arg) {
 
     printf("UPnP listener started on port %d\n", ssdpPort);
 
-    while (1) {
+    while (keepRunning) {
         memset(buffer, 0, sizeof(buffer));
 
         if (recvfrom(sockFd, buffer, sizeof(buffer), 0,
                      (struct sockaddr *)&client_addr, &addrLen) <= 0) {
+            if(errno ==EINTR || errno == EAGAIN) continue;
             fprintf(stderr, "Error receiving SSDP request");
             continue;
         }
 
         char client_ip[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, &client_addr.sin_addr, client_ip, INET_ADDRSTRLEN);
-        
+
         char msg[256];
         int isMSearch = strstr(buffer, "M-SEARCH") != NULL;
 
         if (isMSearch) {
             sendto(sockFd, response, strlen(response), 0,
                 (struct sockaddr *)&client_addr, sizeof(client_addr));
-            
-            snprintf(msg, sizeof(msg), "%s M-SEARCH %s\n", 
+
+            snprintf(msg, sizeof(msg), "%s M-SEARCH %s\n",
                 SERVER_ID, client_ip);
         } else {
-            snprintf(msg, sizeof(msg), "%s non-M-SEARCH %s\n", 
+            snprintf(msg, sizeof(msg), "%s non-M-SEARCH %s\n",
                 SERVER_ID, client_ip);
         }
-        
+
         printf("%s", msg);
         sendMetric(msg);
     }
 
-    free(ssdpResponse);
+    free(response);
     close(sockFd);
+    printf("SSDP listener thread exiting\n");
     return NULL;
 }
 
@@ -200,16 +219,16 @@ void *httpServer(void *arg) {
 
     struct sockaddr_in clientAddr;
     socklen_t addrLen = sizeof(clientAddr);
-    
+
     struct pollfd fds;
     memset(&fds, 0, sizeof(fds));
     fds.fd = serverSock;
     fds.events = POLLIN;
 
     // long long lastHeartbeat = currentTimeMs();
-    while (1){
+    while (keepRunning){
         long long now = currentTimeMs();
-        int timeout = -1;
+        int timeout = 1000;
 
         // long long res = now - lastHeartbeat;
 
@@ -228,7 +247,7 @@ void *httpServer(void *arg) {
                 write(c->fd, chunk_size, strlen(chunk_size));
                 write(c->fd, FAKE_CHUNK, strlen(FAKE_CHUNK));
                 ssize_t out = write(c->fd, "\r\n", 2);
-                
+
                 if (out == -1) {
                     if (errno == EAGAIN || errno == EWOULDBLOCK) { // Avoid blocking
                         c->base.sendNext = now + delay;
@@ -262,6 +281,7 @@ void *httpServer(void *arg) {
         int pollResult = poll(&fds, 1, timeout);
         now = currentTimeMs(); // Poll will cause old value to be misrepresenting
         if (pollResult < 0) {
+            if(errno ==EINTR) continue;
             fprintf(stderr, "Poll error with error %s", strerror(errno));
             continue;
         }
@@ -284,9 +304,10 @@ void *httpServer(void *arg) {
 
             char buffer[1024];
             memset(buffer, 0, 1024);
-            read(clientFd, buffer, 1024-1);
-            char method[20], url[128];
-            sscanf(buffer, "%19s %255s", method, url);
+            int r= read(clientFd, buffer, 1024-1);
+            if(r>0){
+                char method[20], url[128];
+                sscanf(buffer, "%19s %255s", method, url);
 
             if (strcmp(url, "/hue-device.xml") == 0 && strcmp(method, "GET") == 0) {
                 // statsUpnp.totalXmlRequests += 1;
@@ -295,11 +316,9 @@ void *httpServer(void *arg) {
                     "Transfer-Encoding: chunked\r\n"
                     "Trailer: X-Checksum\r\n"
                     "\r\n";
-                
+
                 ssize_t out = write(clientFd, responseHeader, strlen(responseHeader));
                 if(out <= 0){
-                    fprintf(stderr, "failed to write response header to %s\n", 
-                        inet_ntoa(clientAddr.sin_addr));
                     close(clientFd);
                     free(newClient);
                     continue;
@@ -317,10 +336,8 @@ void *httpServer(void *arg) {
                 snprintf(newClient->base.ipaddr, sizeof(newClient->base.ipaddr), "%s", inet_ntoa(clientAddr.sin_addr));
                 queue_append(&clientQueueUpnp, (struct baseClient*)newClient);
 
-                if(statsUpnp.mostConcurrentConnections < clientQueueUpnp.length) {
-                    statsUpnp.mostConcurrentConnections = clientQueueUpnp.length;
-                }
-
+                snprintf(newClient->base.ipaddr, sizeof(newClient->base.ipaddr), "%s", inet_ntoa(clientAddr.sin_addr));
+                queue_append(&clientQueueUpnp, (struct baseClient*)newClient);
                 char msg[256];
                 snprintf(msg, sizeof(msg), "%s connect %s\n",
                     SERVER_ID, newClient->base.ipaddr);
@@ -341,14 +358,32 @@ void *httpServer(void *arg) {
 
                 close(clientFd);
                 free(newClient);
-                continue;
             }
+        } else {
+            close(clientFd);
+            free(newClient);
         }
     }
-
-    close(serverSock);
-    return NULL;
 }
+printf("Shutting down HTTP server gracefully\n");
+while(clientQueueUpnp.head){
+    struct baseClient *bc = queue_pop(&clientQueueUpnp);
+    struct telnetAndUpnpClient *c = (struct telnetAndUpnpClient *)bc;
+    long long timeTrapped = c->base.timeConnected;
+    char msg[256];
+    snprintf(msg, sizeof(msg), "%s disconnect %s %lld\n",
+        SERVER_ID, c->base.ipaddr, timeTrapped);
+    printf("%s", msg);
+    sendMetric(msg);
+    close(c->fd);
+    free(c);
+}
+close(serverSock);
+printf("HTTP server thread exiting\n");
+return NULL;
+}
+
+
 
 void initializeStats(){
     statsUpnp.totalWastedTime = 0;
@@ -361,7 +396,11 @@ void initializeStats(){
 
 int main(int argc, char* argv[]) {
     setbuf(stdout, NULL);
-    
+    if(argc < 5){
+        fprintf(stderr, "Usage: %s <httpPort> <ssdpPort> <delay> <maxNoClients>\n", argv[0]);
+        exit(EXIT_FAILURE);
+    }
+
     // testing
     // char msg[256];
     // snprintf(msg, sizeof(msg), "%s connect %s\n",
@@ -372,7 +411,6 @@ int main(int argc, char* argv[]) {
     // SERVER_ID, "82.211.213.247");
     // fprintf(stderr, "%s", msg);
     // sendMetric(msg);
-    (void)argc;
     httpPort = atoi(argv[1]);
     ssdpPort = atoi(argv[2]);
     delay = atoi(argv[3]);
@@ -380,10 +418,18 @@ int main(int argc, char* argv[]) {
     // openlog("upnp_tarpit", LOG_PID | LOG_CONS, LOG_USER);
     initializeStats();
     setFdLimit(maxNoClients);
+    struct sigaction sa;
+    sa.sa_handler = handleSignal;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    sigaction(SIGINT, &sa, NULL);
+    sigaction(SIGTERM, &sa, NULL);
+    signal(SIGPIPE, SIG_IGN);
     pthread_t ssdpThread, httpThread;
     pthread_create(&ssdpThread, NULL, ssdpListener, NULL);
     pthread_create(&httpThread, NULL, httpServer, NULL);
     pthread_join(ssdpThread, NULL);
     pthread_join(httpThread, NULL);
+    printf("UPnP pit shut down successfully\n");
     return 0;
 }
