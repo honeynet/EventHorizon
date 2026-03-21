@@ -31,6 +31,7 @@ type metrics struct {
 	mqttConnectVersions *prometheus.CounterVec
 	mqttSubscribeTopics *prometheus.CounterVec
 	mqttCredentials *prometheus.CounterVec
+	telnetInput *prometheus.CounterVec
 	mqttPublishTopics *prometheus.CounterVec
 	mqttConacks prometheus.Counter
 	mqttUnsubscribe prometheus.Counter
@@ -88,6 +89,10 @@ func NewMetrics() *metrics {
 			Name: "mqtt_pit_credentials",
 			Help: "MQTT credentials used",
 		}, []string{"username", "password"}),
+		telnetInput: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "telnet_pit_input",
+			Help: "Attacker input captured from Telnet sessions",
+		}, []string{"ip", "data"}),
 		mqttPublishTopics: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "mqtt_pit_publish_topics",
 			Help: "MQTT PUBLISH topic and QoS",
@@ -105,10 +110,10 @@ func NewMetrics() *metrics {
 			Help: "Total PUBREC requests for MQTT",
 		}),
 	}
-	prometheus.MustRegister(m.totalConnects, m.totalTrappedTime, m.activeClients, m.clients, 
+	prometheus.MustRegister(m.totalConnects, m.totalTrappedTime, m.activeClients, m.clients,
 		m.upnpOtherHttpRequests, m.upnpMSearchRequests, m.upnpNonMSearchRequests,
 		m.mqttConacks, m.mqttUnsubscribe, m.mqttPubrec,
-		m.mqttMalformedConnect, m.mqttConnectVersions, m.mqttSubscribeTopics, m.mqttCredentials, m.mqttPublishTopics,)
+		m.mqttMalformedConnect, m.mqttConnectVersions, m.mqttSubscribeTopics, m.mqttCredentials, m.telnetInput, m.mqttPublishTopics,)
 	return m
 }
 
@@ -199,7 +204,7 @@ func handleMetric(line string, metrics *metrics) {
 		if len(fields) >= 4 {
 			url = fields[3]
 		}
-		
+
 		metrics.upnpOtherHttpRequests.WithLabelValues(method, url).Inc()
 	case "M-SEARCH":
 		ip := fields[2]
@@ -229,7 +234,7 @@ func handleMetric(line string, metrics *metrics) {
 		if len(fields) >= 4 {
 			password = fields[3]
 		}
-		
+
 		metrics.mqttCredentials.WithLabelValues(username, password).Inc()
 
 	case "PUBLISH":
@@ -243,6 +248,13 @@ func handleMetric(line string, metrics *metrics) {
 		metrics.mqttUnsubscribe.Inc();
 	case "PUBREC":
 		metrics.mqttPubrec.Inc();
+	case "action":
+		if len(fields) < 4 {
+			return
+		}
+		ip := fields[2]
+		data := fields[3]
+		metrics.telnetInput.WithLabelValues(ip, data).Inc();
 	}
 }
 
@@ -304,7 +316,7 @@ func geoLookup(ipStr string) string {
 		Country struct {
 			ISOCode string `maxminddb:"iso_code"`
 		} `maxminddb:"country"`
-	} 
+	}
 	err := db.Lookup(ip).Decode(&record)
 	if err != nil {
 		log.Panic(err)
