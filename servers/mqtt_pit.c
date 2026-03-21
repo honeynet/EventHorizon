@@ -24,6 +24,12 @@
 // #define FD_LIMIT 4096
 #define SERVER_ID "MQTT"
 
+static volatile sig_atomic_t keepRunning = 1;
+void handleSignal(int sig){
+    (void)sig;
+    keepRunning = 0;
+}
+
 int port;
 int maxEvents;
 int epollTimeoutInterval;
@@ -89,7 +95,7 @@ uint8_t readConnreq(uint8_t* buffer, uint32_t packetEnd, uint32_t offset, struct
     if (offset + 2 > packetEnd) {
         fprintf(stderr, "CONNECT request too small for fixed header");
         return 0x80; // Unspecified error
-    } 
+    }
 
     uint16_t protocolName = (buffer[offset] << 8) | buffer[offset + 1];
     offset += 2;
@@ -100,7 +106,7 @@ uint8_t readConnreq(uint8_t* buffer, uint32_t packetEnd, uint32_t offset, struct
         memcpy(wrong, &buffer[offset], protocolName < 7 ? protocolName : 4);
         fprintf(stderr, "Malformed CONNECT request. Expected \"MQTT\" or \"MQIsdp\" but got \"%s\"", wrong);
         return 0x01; // Unacceptable protocol version
-    } 
+    }
     if(isV31) {
         offset += 6;
     } else {
@@ -145,7 +151,7 @@ uint8_t readConnreq(uint8_t* buffer, uint32_t packetEnd, uint32_t offset, struct
     if (offset + 2 > packetEnd){
         fprintf(stderr, "No keep-alive value supplied");
         return 0x80;
-    } 
+    }
     int keepAlive = (buffer[offset] << 8) | buffer[offset + 1];
     if(keepAlive < 0) {
         fprintf(stderr, "Negative keep-alive value received: %d", keepAlive);
@@ -186,7 +192,7 @@ uint8_t readConnreq(uint8_t* buffer, uint32_t packetEnd, uint32_t offset, struct
         if (offset + 2 > packetEnd) {
             fprintf(stderr, "Username flag supplied, but with no username");
             return 0x80;
-        } 
+        }
         uint16_t user_len = (buffer[offset] << 8) | buffer[offset + 1];
         offset += 2;
 
@@ -207,7 +213,7 @@ uint8_t readConnreq(uint8_t* buffer, uint32_t packetEnd, uint32_t offset, struct
         if (offset + 2 > packetEnd) {
             fprintf(stderr, "Password flag supplied, but with no password");
             return 0x80;
-        } 
+        }
         uint16_t passwordLength = (buffer[offset] << 8) | buffer[offset + 1];
         offset += 2;
         if (offset + passwordLength > packetEnd){
@@ -215,7 +221,7 @@ uint8_t readConnreq(uint8_t* buffer, uint32_t packetEnd, uint32_t offset, struct
             return 0x80;
         }
 
-        
+
         uint16_t safeLength = passwordLength < 255 ? passwordLength : 255;
         memcpy(password, &buffer[offset], safeLength);
         offset += passwordLength;
@@ -314,7 +320,7 @@ bool sendConnack(struct mqttClient* client, uint8_t reasonCode) {
     if (!arr) {
         fprintf(stderr, "malloc failed for connack packet");
         return false;
-    } 
+    }
 
     if (client->version == V5) {
         arr[0] = 0x20;       // CONNACK fixed header
@@ -375,13 +381,13 @@ void readPublish(uint8_t* buffer, uint32_t packetEnd, uint32_t offset, enum Mqtt
         offset += 2; // packet id (don't care)
     }
 
-    if(version == V5) {        
+    if(version == V5) {
         uint32_t varint;
         bool decodeSuccess = decodeVarint(buffer, packetEnd, &offset, &varint);
         if(!decodeSuccess) {
             return;
         }
-    
+
         // Skip properties
         offset += varint;
     }
@@ -505,7 +511,7 @@ bool sendPublish(struct mqttClient* client, const char* topic, const char* messa
     } else {
         // syslog(LOG_INFO, "Sent PUBLISH to client (fd=%d), topic=%s\n", client->fd, topic);
     }
-    
+
     return true;
 }
 
@@ -609,7 +615,7 @@ bool sendPubrel(struct mqttClient* client, uint16_t packetId) {
         arr[1] = 0x04;               // Remaining Length
         arr[2] = packetId >> 8;      // packetId
         arr[3] = packetId & 0xFF;
-    
+
         arr[4] = 0x00;               // Reason Code: Success
         arr[5] = 0x00;               // Property Length
     } else {
@@ -706,7 +712,7 @@ void calculateTotalPacketLengths(uint8_t *buffer, uint32_t bytesWrittenToBuffer,
     while (offset < bytesWrittenToBuffer) {
         if (bytesWrittenToBuffer - offset < 2) {
             fprintf(stderr, "CALCULATE: Not enough data for fixed header");
-            break; 
+            break;
         }
 
         if (*packetCount == maxPacketsPerClient) {
@@ -730,7 +736,7 @@ void calculateTotalPacketLengths(uint8_t *buffer, uint32_t bytesWrittenToBuffer,
             encodedBytes++;
 
             if ((byte & 0b10000000) == 0) {
-                break; 
+                break;
             }
         }
 
@@ -761,7 +767,7 @@ void cleanupBuffer(struct mqttClient* client, uint32_t packetLength){
 
 int main(int argc, char* argv[]) {
     setbuf(stdout, NULL);
-    
+
     // testing
     // char msg[256];
     // snprintf(msg, sizeof(msg), "%s connect %s\n",
@@ -779,13 +785,13 @@ int main(int argc, char* argv[]) {
     initializeStats();
     setFdLimit(maxNoClients);
     signal(SIGPIPE, SIG_IGN);
-    
+
     int serverSock = createServer(port);
     if (serverSock < 0) {
         fprintf(stderr, "Invalid server socket fd: %d", serverSock);
         exit(EXIT_FAILURE);
     }
-    
+
     struct sockaddr_in clientAddr;
     socklen_t addrLen = sizeof(clientAddr);
 
@@ -803,8 +809,16 @@ int main(int argc, char* argv[]) {
         exit(EXIT_FAILURE);
     }
 
+    struct sigaction sa;
+    sa.sa_handler = handleSignal;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    sigaction(SIGINT, &sa, NULL);
+    sigaction(SIGTERM, &sa, NULL);
+    signal(SIGPIPE, SIG_IGN);
+
     // long long lastHeartbeat = currentTimeMs();
-    while(true) {
+    while(keepRunning) {
         long long now = currentTimeMs();
 
         // if (now - lastHeartbeat >= HEARTBEAT_INTERVAL_MS) {
@@ -814,11 +828,12 @@ int main(int argc, char* argv[]) {
 
         int nfds = epoll_wait(epollfd, eventsQueue, maxEvents, epollTimeoutInterval);
         if (nfds == -1) {
+            if (errno == EINTR) continue;
             fprintf(stderr, "epoll_wait");
             exit(EXIT_FAILURE);
         }
 
-        // Update now, since epoll_wait made the value outdated. 
+        // Update now, since epoll_wait made the value outdated.
         now = currentTimeMs();
         for (int n = 0; n < nfds; ++n) {
             int currentFd = eventsQueue[n].data.fd;
@@ -835,7 +850,7 @@ int main(int argc, char* argv[]) {
                     continue;
                 }
 
-                
+
                 statsMqtt.totalConnects += 1;
                 newClient->fd = clientFd;
                 strncpy(newClient->ipaddr, inet_ntoa(clientAddr.sin_addr), INET_ADDRSTRLEN);
@@ -857,7 +872,7 @@ int main(int argc, char* argv[]) {
                     free(newClient);
                     continue;
                 }
-                
+
                 addClient(newClient);
                 char msg[256];
                 snprintf(msg, sizeof(msg), "%s connect %s\n",
@@ -896,13 +911,13 @@ int main(int argc, char* argv[]) {
 
                 calculateTotalPacketLengths(client->buffer, client->bytesWrittenToBuffer,
                             packetLengths, packetStarts, &packetCount);
-                
+
                 uint32_t processedPackets = 0;
                 for (uint32_t i = 0; i < packetCount; i++) {
                     uint32_t packetLength = packetLengths[i];
                     uint32_t packetStart = packetStarts[i];
                     uint32_t packetEnd = packetStart + packetLength;
-                    
+
                     if (packetLength == 0 || processedPackets + packetLength > client->bytesWrittenToBuffer) {
                         // syslog(LOG_INFO, "Incomplete packet");
                         break; // Incomplete packet
@@ -975,9 +990,9 @@ int main(int argc, char* argv[]) {
                 }
                 client->bytesWrittenToBuffer = leftover;
             }
-            
+
         }
-        
+
         // Detect dead clients and disconnect them
         for (struct mqttClient *c = clients, *tmp = NULL; c != NULL; c = tmp) {
             long long timeSinceLastActivityMs = now - c->lastActivityMs;
@@ -995,6 +1010,22 @@ int main(int argc, char* argv[]) {
             }
         }
     }
+    printf("Shutting down MQTT server gracefully\n");
+    struct mqttClient *c, *tmp;
+    HASH_ITER(hh, clients, c, tmp) {
+        long long timeTrapped = currentTimeMs() - c->timeOfConnection;
+        char msg[256];
+        snprintf(msg, sizeof(msg), "%s disconnect %s %lld",
+            SERVER_ID, c->ipaddr, timeTrapped);
+        printf("%s", msg);
+        sendMetric(msg);
+        epoll_ctl(epollfd, EPOLL_CTL_DEL, c->fd, NULL);
+        close(c->fd);
+        HASH_DEL(clients, c);
+        free(c);
+    }
+    close(epollfd);
+    printf("MQTT server shutdown successfully\n");
 
     // closelog();
     close(serverSock);
