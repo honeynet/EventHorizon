@@ -10,4 +10,8 @@ FROM debian:bookworm-slim
 COPY --from=go-builder /out/prometheus_exporter /usr/local/bin/
 
 WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends wget \
+    && rm -rf /var/lib/apt/lists/*
+RUN useradd -r -s /bin/false prometheus_exporter
+USER prometheus_exporter
 CMD ["prometheus_exporter"]
