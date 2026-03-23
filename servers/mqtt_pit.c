@@ -23,6 +23,7 @@
 // #define MAX_PACKETS_PER_CLIENTS 50
 // #define FD_LIMIT 4096
 #define SERVER_ID "MQTT"
+#define MQTT_CAPTURE_MAX_BYTES 256
 
 int port;
 int maxEvents;
@@ -85,6 +86,41 @@ bool decodeVarint(const uint8_t* buffer, uint32_t packetEnd, uint32_t* offset, u
     return true;
 }
 
+void sanitizeMetricToken(const uint8_t* src, size_t srcLen, char* dst, size_t dstSize) {
+    if (dstSize == 0) {
+        return;
+    }
+    size_t maxLen = srcLen < MQTT_CAPTURE_MAX_BYTES ? srcLen : MQTT_CAPTURE_MAX_BYTES;
+    size_t out = 0;
+    for (size_t i = 0; i < maxLen && out < dstSize - 1; i++) {
+        uint8_t c = src[i];
+        if (c <= 32 || c >= 127) {
+            dst[out++] = '.';
+        } else {
+            dst[out++] = (char)c;
+        }
+    }
+    if (out == 0) {
+        dst[out++] = '_';
+    }
+    dst[out] = '\0';
+}
+
+void emitMqttPayloadMetric(struct mqttClient* client, const char* packetType, const uint8_t* payload, size_t payloadLen) {
+    if (!client || !packetType || !payload) {
+        return;
+    }
+    char payloadToken[MQTT_CAPTURE_MAX_BYTES + 1];
+    sanitizeMetricToken(payload, payloadLen, payloadToken, sizeof(payloadToken));
+
+    char msg[1024];
+    int written = snprintf(msg, sizeof(msg), "%s payloadCaptured %s %u MQTT %s %s\n",
+        SERVER_ID, client->ipaddr, client->port, packetType, payloadToken);
+    if (written > 0 && (size_t)written < sizeof(msg)) {
+        sendMetric(msg);
+    }
+}
+
 uint8_t readConnreq(uint8_t* buffer, uint32_t packetEnd, uint32_t offset, struct mqttClient* client){
     if (offset + 2 > packetEnd) {
         fprintf(stderr, "CONNECT request too small for fixed header");
@@ -113,19 +149,23 @@ uint8_t readConnreq(uint8_t* buffer, uint32_t packetEnd, uint32_t offset, struct
         return 0x80;
     }
     uint8_t proto_level = buffer[offset++];
+    const char* versionStr = "";
     char msg[256];
     if(proto_level == 0b101) {
         snprintf(msg, sizeof(msg), "%s CONNECT %s\n",
             SERVER_ID, "v5");
         client->version = V5;
+        versionStr = "v5";
      } else if (proto_level == 0b100) {
         snprintf(msg, sizeof(msg), "%s CONNECT %s\n",
         SERVER_ID, "v3.1.1");
         client->version = V311;
+        versionStr = "v3.1.1";
     } else if (proto_level == 0b011) {
         snprintf(msg, sizeof(msg), "%s CONNECT %s\n",
         SERVER_ID, "v3.1");
         client->version = V31;
+        versionStr = "v3.1";
     } else {
         fprintf(stderr, "Unsupported MQTT version: %d", proto_level);
         return 0x01; // Unacceptable protocol version
@@ -178,10 +218,13 @@ uint8_t readConnreq(uint8_t* buffer, uint32_t packetEnd, uint32_t offset, struct
         fprintf(stderr, "clientId too long for packet");
         return 0x02;
     }
+    const uint8_t* clientIdPtr = &buffer[offset];
+    char clientIdToken[MQTT_CAPTURE_MAX_BYTES + 1] = {0};
+    sanitizeMetricToken(clientIdPtr, clientIdLength, clientIdToken, sizeof(clientIdToken));
     offset += clientIdLength;
 
     // Username
-    char username[256] = {0};
+    char usernameToken[MQTT_CAPTURE_MAX_BYTES + 1] = "_";
     if (connect_flags & 0b10000000) {
         if (offset + 2 > packetEnd) {
             fprintf(stderr, "Username flag supplied, but with no username");
@@ -195,14 +238,12 @@ uint8_t readConnreq(uint8_t* buffer, uint32_t packetEnd, uint32_t offset, struct
             return 0x80;
         }
 
-        uint16_t safeLength = user_len < 255 ? user_len : 255;
-        memcpy(username, &buffer[offset], safeLength);
+        sanitizeMetricToken(&buffer[offset], user_len, usernameToken, sizeof(usernameToken));
         offset += user_len;
         // syslog(LOG_INFO, "Username: %s\n", username);
     }
 
     // Password
-    char password[256] = {0};
     if (connect_flags & 0b1000000) {
         if (offset + 2 > packetEnd) {
             fprintf(stderr, "Password flag supplied, but with no password");
@@ -214,24 +255,25 @@ uint8_t readConnreq(uint8_t* buffer, uint32_t packetEnd, uint32_t offset, struct
             fprintf(stderr, "Password too long");
             return 0x80;
         }
-
-        
-        uint16_t safeLength = passwordLength < 255 ? passwordLength : 255;
-        memcpy(password, &buffer[offset], safeLength);
         offset += passwordLength;
         // syslog(LOG_INFO, "Password: %s\n", password);
     }
 
-    // syslog(LOG_INFO, "Successfully read CONNECT request with keep-alive: %d username: %s password: %s", keepAlive, username, password);
-    // char msg[256];
-    snprintf(msg, sizeof(msg), "%s credentials %.100s %.100s\n",
-        SERVER_ID, username, password);
+    char payloadCapture[768];
+    int payloadWritten = snprintf(payloadCapture, sizeof(payloadCapture),
+        "client_id=%s;username=%s;version=%s", clientIdToken, usernameToken, versionStr);
+    if (payloadWritten > 0) {
+        emitMqttPayloadMetric(client, "connect", (const uint8_t*)payloadCapture, (size_t)payloadWritten);
+    }
+
+    snprintf(msg, sizeof(msg), "%s credentials %.100s\n",
+        SERVER_ID, usernameToken);
     printf("%s", msg);
     sendMetric(msg);
     return 0x00; // Success
 }
 
-void readSubscribe(uint8_t* buffer, uint32_t packetEnd, uint32_t offset, enum MqttVersion version) {
+void readSubscribe(uint8_t* buffer, uint32_t packetEnd, uint32_t offset, enum MqttVersion version, struct mqttClient* client) {
     // syslog(LOG_INFO, "Reading SUBSCRIBE request");
     if (offset + 2 > packetEnd) {
         fprintf(stderr, "SUBSCRIBE request too short for fixed header");
@@ -279,6 +321,7 @@ void readSubscribe(uint8_t* buffer, uint32_t packetEnd, uint32_t offset, enum Mq
         SERVER_ID, topic, qos);
     printf("%s", msg);
     sendMetric(msg);
+    emitMqttPayloadMetric(client, "subscribe", (const uint8_t*)topic, strlen(topic));
 
     // syslog(LOG_INFO, "Successfully read SUBSCRIBE request with topic: %s and QoS %d", topic, qos);
     return;
@@ -351,7 +394,7 @@ bool sendConnack(struct mqttClient* client, uint8_t reasonCode) {
     return true;
 }
 
-void readPublish(uint8_t* buffer, uint32_t packetEnd, uint32_t offset, enum MqttVersion version) {
+void readPublish(uint8_t* buffer, uint32_t packetEnd, uint32_t offset, enum MqttVersion version, struct mqttClient* client) {
     if (offset + 2 > packetEnd) {
         fprintf(stderr, "PUBLISH packet too short for topic length");
         return;
@@ -365,8 +408,9 @@ void readPublish(uint8_t* buffer, uint32_t packetEnd, uint32_t offset, enum Mqtt
         return;
     }
 
+    const uint8_t* topicPtr = &buffer[offset];
     char topic[256] = {0};
-    memcpy(topic, &buffer[offset], topicLen < 255 ? topicLen : 255);
+    memcpy(topic, topicPtr, topicLen < 255 ? topicLen : 255);
     offset += topicLen;
 
     uint8_t qos = (buffer[0] & 0b00000110) >> 1;
@@ -391,9 +435,19 @@ void readPublish(uint8_t* buffer, uint32_t packetEnd, uint32_t offset, enum Mqtt
 
     char payload[512] = {0};
     uint32_t payloadLen = packetEnd - offset;
-    uint32_t copyLen = payloadLen < sizeof(payload) - 1 ? payloadLen - 2: sizeof(payload) - 1;
+    uint32_t copyLen = payloadLen < sizeof(payload) - 1 ? payloadLen : sizeof(payload) - 1;
     memcpy(payload, &buffer[offset], payloadLen < 511 ? payloadLen : 511);
     payload[copyLen] = '\0';
+
+    char topicToken[MQTT_CAPTURE_MAX_BYTES + 1] = {0};
+    char payloadToken[MQTT_CAPTURE_MAX_BYTES + 1] = {0};
+    sanitizeMetricToken(topicPtr, topicLen, topicToken, sizeof(topicToken));
+    sanitizeMetricToken(&buffer[offset], payloadLen, payloadToken, sizeof(payloadToken));
+    char payloadCapture[768];
+    int payloadWritten = snprintf(payloadCapture, sizeof(payloadCapture), "topic=%s;payload=%s", topicToken, payloadToken);
+    if (payloadWritten > 0) {
+        emitMqttPayloadMetric(client, "publish", (const uint8_t*)payloadCapture, (size_t)payloadWritten);
+    }
 
     char msg[256];
     snprintf(msg, sizeof(msg), "%s PUBLISH %.100s %d\n",
@@ -839,6 +893,7 @@ int main(int argc, char* argv[]) {
                 statsMqtt.totalConnects += 1;
                 newClient->fd = clientFd;
                 strncpy(newClient->ipaddr, inet_ntoa(clientAddr.sin_addr), INET_ADDRSTRLEN);
+                newClient->port = ntohs(clientAddr.sin_port);
                 newClient->bytesWrittenToBuffer = 0;
                 newClient->lastActivityMs = now;
                 newClient->timeOfConnection = now;
@@ -933,13 +988,13 @@ int main(int argc, char* argv[]) {
                             }
                             break;
                         case SUBSCRIBE:
-                            readSubscribe(client->buffer, packetEnd, packetStart, client->version);
+                            readSubscribe(client->buffer, packetEnd, packetStart, client->version, client);
                             break;
                         case PUBREC:
                             readPubrec(client->buffer, packetEnd, packetStart, client);
                             break;
                         case PUBLISH:
-                            readPublish(client->buffer, packetEnd, packetStart, client->version);
+                            readPublish(client->buffer, packetEnd, packetStart, client->version, client);
                             break;
                         case PUBCOMP:
                             readPubcomp(packetEnd, packetStart);

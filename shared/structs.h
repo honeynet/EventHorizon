@@ -40,6 +40,7 @@ struct coapClient {
 struct mqttClient {
     int fd;
     char ipaddr[INET_ADDRSTRLEN];
+    uint16_t port;
     uint8_t buffer[1024];
     uint16_t bytesWrittenToBuffer;
     uint16_t keepAlive;

@@ -4,12 +4,12 @@ import (
 	// "bufio"
 	"fmt"
 	"log"
-	"net/netip"
 	"net"
 	"net/http"
-	"strings"
+	"net/netip"
 	"os"
 	"strconv"
+	"strings"
 
 	// "github.com/oschwald/geoip2-golang"
 	"github.com/oschwald/maxminddb-golang/v2"
@@ -18,23 +18,24 @@ import (
 )
 
 type metrics struct {
-	totalConnects  *prometheus.CounterVec
+	totalConnects    *prometheus.CounterVec
 	totalTrappedTime *prometheus.CounterVec
-	activeClients *prometheus.GaugeVec
-	clients *prometheus.CounterVec
+	activeClients    *prometheus.GaugeVec
+	clients          *prometheus.CounterVec
 
-	upnpOtherHttpRequests *prometheus.CounterVec
-	upnpMSearchRequests *prometheus.CounterVec
+	upnpOtherHttpRequests  *prometheus.CounterVec
+	upnpMSearchRequests    *prometheus.CounterVec
 	upnpNonMSearchRequests *prometheus.CounterVec
 
 	mqttMalformedConnect prometheus.Counter
-	mqttConnectVersions *prometheus.CounterVec
-	mqttSubscribeTopics *prometheus.CounterVec
-	mqttCredentials *prometheus.CounterVec
-	mqttPublishTopics *prometheus.CounterVec
-	mqttConacks prometheus.Counter
-	mqttUnsubscribe prometheus.Counter
-	mqttPubrec prometheus.Counter
+	mqttConnectVersions  *prometheus.CounterVec
+	mqttSubscribeTopics  *prometheus.CounterVec
+	mqttCredentials      *prometheus.CounterVec
+	mqttPayloadCaptured  *prometheus.CounterVec
+	mqttPublishTopics    *prometheus.CounterVec
+	mqttConacks          prometheus.Counter
+	mqttUnsubscribe      prometheus.Counter
+	mqttPubrec           prometheus.Counter
 }
 
 // Global variable
@@ -57,7 +58,7 @@ func NewMetrics() *metrics {
 		clients: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "tarpitted_clients",
 			Help: "Connected clients",
-		}, []string{/*"ip", */"server","country", "latitude", "longitude"}),
+		}, []string{ /*"ip", */ "server", "country", "latitude", "longitude"}),
 		// ---------------
 		upnpOtherHttpRequests: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "upnp_other_http_requests",
@@ -88,6 +89,10 @@ func NewMetrics() *metrics {
 			Name: "mqtt_pit_credentials",
 			Help: "MQTT credentials used",
 		}, []string{"username", "password"}),
+		mqttPayloadCaptured: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "mqtt_pit_payload_captured",
+			Help: "Captured MQTT payload metadata from attacker traffic",
+		}, []string{"ip", "port", "protocol", "packet_type", "payload"}),
 		mqttPublishTopics: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "mqtt_pit_publish_topics",
 			Help: "MQTT PUBLISH topic and QoS",
@@ -105,10 +110,10 @@ func NewMetrics() *metrics {
 			Help: "Total PUBREC requests for MQTT",
 		}),
 	}
-	prometheus.MustRegister(m.totalConnects, m.totalTrappedTime, m.activeClients, m.clients, 
+	prometheus.MustRegister(m.totalConnects, m.totalTrappedTime, m.activeClients, m.clients,
 		m.upnpOtherHttpRequests, m.upnpMSearchRequests, m.upnpNonMSearchRequests,
 		m.mqttConacks, m.mqttUnsubscribe, m.mqttPubrec,
-		m.mqttMalformedConnect, m.mqttConnectVersions, m.mqttSubscribeTopics, m.mqttCredentials, m.mqttPublishTopics,)
+		m.mqttMalformedConnect, m.mqttConnectVersions, m.mqttSubscribeTopics, m.mqttCredentials, m.mqttPayloadCaptured, m.mqttPublishTopics)
 	return m
 }
 
@@ -117,11 +122,10 @@ func main() {
 	geoliteDbPath := os.Getenv("GEO_DB")
 	// fmt.Print(geoliteDbPath+"\n")
 	db, err = maxminddb.Open(geoliteDbPath)
-    if err != nil {
-        log.Fatal("Cannot open GeoLite2 database: ", err)
-    }
-    defer db.Close()
-
+	if err != nil {
+		log.Fatal("Cannot open GeoLite2 database: ", err)
+	}
+	defer db.Close()
 
 	// Register metrics
 	m := NewMetrics()
@@ -199,7 +203,7 @@ func handleMetric(line string, metrics *metrics) {
 		if len(fields) >= 4 {
 			url = fields[3]
 		}
-		
+
 		metrics.upnpOtherHttpRequests.WithLabelValues(method, url).Inc()
 	case "M-SEARCH":
 		ip := fields[2]
@@ -229,20 +233,30 @@ func handleMetric(line string, metrics *metrics) {
 		if len(fields) >= 4 {
 			password = fields[3]
 		}
-		
+
 		metrics.mqttCredentials.WithLabelValues(username, password).Inc()
 
 	case "PUBLISH":
 		topic := fields[2]
 		qos := fields[3]
 		metrics.mqttPublishTopics.WithLabelValues(topic, qos).Inc()
+	case "payloadCaptured":
+		if len(fields) < 7 {
+			return
+		}
+		ip := fields[2]
+		port := fields[3]
+		protocol := fields[4]
+		packetType := fields[5]
+		payload := fields[6]
+		metrics.mqttPayloadCaptured.WithLabelValues(ip, port, protocol, packetType, payload).Inc()
 
 	case "CONNACK":
-		metrics.mqttConacks.Inc();
+		metrics.mqttConacks.Inc()
 	case "UNSUBSCRIBE":
-		metrics.mqttUnsubscribe.Inc();
+		metrics.mqttUnsubscribe.Inc()
 	case "PUBREC":
-		metrics.mqttPubrec.Inc();
+		metrics.mqttPubrec.Inc()
 	}
 }
 
@@ -298,13 +312,13 @@ func parseTimeMs(s string) int64 {
 }
 
 func geoLookup(ipStr string) string {
-    ip := netip.MustParseAddr(ipStr)
+	ip := netip.MustParseAddr(ipStr)
 
 	var record struct {
 		Country struct {
 			ISOCode string `maxminddb:"iso_code"`
 		} `maxminddb:"country"`
-	} 
+	}
 	err := db.Lookup(ip).Decode(&record)
 	if err != nil {
 		log.Panic(err)
