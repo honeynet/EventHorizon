@@ -92,7 +92,7 @@ func NewMetrics() *metrics {
 		telnetInput: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "telnet_pit_input",
 			Help: "Attacker input captured from Telnet sessions",
-		}, []string{"ip", "data"}),
+		}, []string{"ip"}),
 		mqttPublishTopics: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "mqtt_pit_publish_topics",
 			Help: "MQTT PUBLISH topic and QoS",
@@ -253,8 +253,7 @@ func handleMetric(line string, metrics *metrics) {
 			return
 		}
 		ip := fields[2]
-		data := fields[3]
-		metrics.telnetInput.WithLabelValues(ip, data).Inc();
+		metrics.telnetInput.WithLabelValues(ip).Inc();
 	}
 }
 
