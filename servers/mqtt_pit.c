@@ -871,6 +871,11 @@ int main(int argc, char* argv[]) {
                 // }
             } else {
                 struct mqttClient* client = lookupClient(currentFd);
+                if (client == NULL) {
+                    epoll_ctl(epollfd, EPOLL_CTL_DEL, currentFd, NULL);
+                    close(currentFd);
+                    continue;
+                }
                 ssize_t bytesRead = read(currentFd,
                           client->buffer + client->bytesWrittenToBuffer, // Avoid overwriting existing data
                           sizeof(client->buffer) - client->bytesWrittenToBuffer);
