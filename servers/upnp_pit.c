@@ -117,6 +117,48 @@ char* ssdpResponse() {
     return responseBuffer;
 }
 
+// Logging the headers and their values
+void extraction(char *pkt_buffer,char *log_msg){
+    char *current_pos=pkt_buffer;
+    char *nl = strchr(current_pos, '\n');
+    if (!nl) return;
+    current_pos = nl + 1;
+    
+    while ((nl = strchr(current_pos, '\n')) != NULL){
+        if (*current_pos == '\r' || *current_pos == '\n') break;
+            if(*current_pos!=' '&& *current_pos != '\t'){
+                char *col = strchr(current_pos,':');
+                    int current_line_len = nl - current_pos;
+                if (col != NULL && col < nl) {
+                    int key_len = col - current_pos;
+                    char key_name[64] = {0};
+                    if (key_len > 0 && key_len < sizeof(key_name)) {
+                        strncpy(key_name, current_pos, key_len);
+                        key_name[key_len] = '\0';
+                    }
+
+                    char *val_ptr = col + 1;
+                    while (*val_ptr == ' ') val_ptr++; 
+
+                    int val_len = 0;
+                    while (val_ptr + val_len < nl && 
+                            val_ptr[val_len] != '\r' && 
+                            val_ptr[val_len] != '\n') {
+                        val_len++;
+                    }
+                    if (val_len > 0) {
+                        char fragment[512];
+                        snprintf(fragment, sizeof(fragment), " | %s:%.*s", key_name, val_len, val_ptr);
+                        if (strlen(log_msg) + strlen(fragment) < 1023) {
+                            strcat(log_msg, fragment);
+                        }
+                    }
+                }
+            }
+    current_pos = nl + 1;
+    }
+}
+
 // Handles SSDP discovery requests and sends fake responses
 void *ssdpListener(void *arg) {
     (void)arg;
@@ -174,6 +216,7 @@ void *ssdpListener(void *arg) {
             
             snprintf(msg, sizeof(msg), "%s M-SEARCH %s\n", 
                 SERVER_ID, client_ip);
+            extraction(buffer,msg);
         } else {
             snprintf(msg, sizeof(msg), "%s non-M-SEARCH %s\n", 
                 SERVER_ID, client_ip);
