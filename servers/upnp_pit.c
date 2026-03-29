@@ -214,15 +214,16 @@ void *ssdpListener(void *arg) {
             sendto(sockFd, response, strlen(response), 0,
                 (struct sockaddr *)&client_addr, sizeof(client_addr));
             
-            snprintf(msg, sizeof(msg), "%s M-SEARCH %s\n", 
+            snprintf(msg, sizeof(msg), "%s M-SEARCH %s", 
                 SERVER_ID, client_ip);
             extraction(buffer,msg);
         } else {
-            snprintf(msg, sizeof(msg), "%s non-M-SEARCH %s\n", 
+            snprintf(msg, sizeof(msg), "%s non-M-SEARCH %s", 
                 SERVER_ID, client_ip);
+                extraction(buffer,msg);
         }
         
-        printf("%s", msg);
+        printf("%s\n", msg);
         sendMetric(msg);
     }
 
