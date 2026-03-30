@@ -17,10 +17,17 @@ struct baseClient {
     char ipaddr[INET_ADDRSTRLEN];
 };
 
-struct telnetAndUpnpClient {
-    struct baseClient base;
-    int fd;
-};
+    struct telnetAndUpnpClient {
+        struct baseClient base;
+        int fd;
+        int loginPromptSent;
+        int inputCaptured;
+        int passwordPromptSent;   
+        int passwordCaptured;     
+        char username[256];       
+        char inputBuf[256];      
+        int inputBufLen;
+    };
 
 struct coapClient {
     struct baseClient base;
