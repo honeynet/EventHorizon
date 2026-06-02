@@ -84,7 +84,7 @@ function startMqtt() {
     local pubrelInterval=$4
     local maxPacketsPerClient=$5
     local maxNoClients=$6
-    echo "Starting mqtt_pit with port=$port maxEvents=$maxEvents epollTimeout=$epollTimeout pubrelInterval=$pubrelInterval maxPackets=$maxPackets maxNoClients=$maxNoClients"
+    echo "Starting mqtt_pit with port=$port maxEvents=$maxEvents epollTimeoutInterval=$epollTimeoutInterval pubrelInterval=$pubrelInterval maxPacketsPerClient=$maxPacketsPerClient maxNoClients=$maxNoClients"
     
     exec "$BIN_DIR/mqtt_pit" "$port" "$maxEvents" "$epollTimeoutInterval" "$pubrelInterval" "$maxPacketsPerClient" "$maxNoClients"
 }
