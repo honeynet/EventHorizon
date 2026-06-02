@@ -122,11 +122,41 @@ int main(int argc, char *argv[]) {
                     c->base.sendNext = now + delay;
                     c->base.timeConnected += delay;
                     statsTelnet.totalWastedTime += delay;
+                    char buf[65];
+                    ssize_t r=read(c->fd, buf, sizeof(buf)-1);
+                    if(r<0){
+                        //do nothing
+                    }else if(r==0){
+                        char msg[256];
+                        snprintf(msg, sizeof(msg), "%s disconnect %s %lld\n",
+                            SERVER_ID, c->base.ipaddr, c->base.timeConnected);
+                        printf("%s", msg);
+                        sendMetric(msg);
+                        close(c->fd);
+                        free(c);
+                        continue;
+                    }else{
+                        //terminate null
+                        buf[r]='\0';
+                        for(int i=0;i<r;i++){
+                            if(buf[i]<32 || buf[i]>126) buf[i]='.';
+                            if(buf[i]=='\t') buf[i]=' ';
+                        }
+
+                        //send metric
+                        char msg[256];
+                        snprintf(msg, sizeof(msg), "%s action %s %s\n",
+                            SERVER_ID, c->base.ipaddr, buf);
+                        printf("%s", msg);
+
+                        sendMetric(msg);
+                    }
                     queue_append(&clientQueueTelnet, (struct baseClient *)c);
                 }
-            } else {
+            }else{
                 timeout = clientQueueTelnet.head->sendNext - now;
                 break;
+
             }
         }
         
