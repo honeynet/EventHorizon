@@ -663,7 +663,7 @@ void disconnectClient(struct mqttClient* client, int epollFd, long long now){
     snprintf(msg, sizeof(msg), "%s disconnect %s %lld",
         SERVER_ID, client->ipaddr, wastedTime);
 
-    printf(msg);
+    printf("%s", msg);
     sendMetric(msg);
 
     epoll_ctl(epollFd, EPOLL_CTL_DEL, client->fd, NULL);
