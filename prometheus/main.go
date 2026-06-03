@@ -31,6 +31,7 @@ type metrics struct {
 	mqttConnectVersions *prometheus.CounterVec
 	mqttSubscribeTopics *prometheus.CounterVec
 	mqttCredentials *prometheus.CounterVec
+	telnetInput *prometheus.CounterVec
 	mqttPublishTopics *prometheus.CounterVec
 	mqttConacks prometheus.Counter
 	mqttUnsubscribe prometheus.Counter
@@ -88,6 +89,10 @@ func NewMetrics() *metrics {
 			Name: "mqtt_pit_credentials",
 			Help: "MQTT credentials used",
 		}, []string{"username", "password"}),
+		telnetInput: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "telnet_pit_input",
+			Help: "Attacker input captured from Telnet sessions",
+		}, []string{"ip"}),
 		mqttPublishTopics: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "mqtt_pit_publish_topics",
 			Help: "MQTT PUBLISH topic and QoS",
@@ -105,10 +110,10 @@ func NewMetrics() *metrics {
 			Help: "Total PUBREC requests for MQTT",
 		}),
 	}
-	prometheus.MustRegister(m.totalConnects, m.totalTrappedTime, m.activeClients, m.clients, 
+	prometheus.MustRegister(m.totalConnects, m.totalTrappedTime, m.activeClients, m.clients,
 		m.upnpOtherHttpRequests, m.upnpMSearchRequests, m.upnpNonMSearchRequests,
 		m.mqttConacks, m.mqttUnsubscribe, m.mqttPubrec,
-		m.mqttMalformedConnect, m.mqttConnectVersions, m.mqttSubscribeTopics, m.mqttCredentials, m.mqttPublishTopics,)
+		m.mqttMalformedConnect, m.mqttConnectVersions, m.mqttSubscribeTopics, m.mqttCredentials, m.telnetInput, m.mqttPublishTopics,)
 	return m
 }
 
@@ -169,11 +174,20 @@ func handleMetric(line string, metrics *metrics) {
 	fields := strings.Fields(line)
 	log.Println(fields)
 
+	if len(fields) < 2 {
+		log.Printf("Malformed metric line (need at least 2 fields): %q", line)
+		return
+	}
+
 	server := fields[0]
 	command := fields[1]
 
 	switch command {
 	case "connect":
+		if len(fields) < 3 {
+			log.Printf("Malformed connect metric (need 3 fields): %q", line)
+			return
+		}
 		ip := fields[2]
 		country := geoLookup(ip)
 		lat := CapitalCoordinates[country].Latitude
@@ -181,6 +195,10 @@ func handleMetric(line string, metrics *metrics) {
 		// Reduce cardinality by removing ip
 		handleConnect(server, country, lat, lon, metrics)
 	case "disconnect":
+		if len(fields) < 4 {
+			log.Printf("Malformed disconnect metric (need 4 fields): %q", line)
+			return
+		}
 		// ip := fields[2]
 		parsedTimeTrapped, err := strconv.ParseUint(fields[3], 10, 64)
 		if err != nil {
@@ -199,16 +217,28 @@ func handleMetric(line string, metrics *metrics) {
 		if len(fields) >= 4 {
 			url = fields[3]
 		}
-		
+
 		metrics.upnpOtherHttpRequests.WithLabelValues(method, url).Inc()
 	case "M-SEARCH":
+		if len(fields) < 3 {
+			log.Printf("Malformed M-SEARCH metric (need 3 fields): %q", line)
+			return
+		}
 		ip := fields[2]
 		metrics.upnpMSearchRequests.WithLabelValues(ip).Inc()
 	case "non-M-SEARCH":
+		if len(fields) < 3 {
+			log.Printf("Malformed non-M-SEARCH metric (need 3 fields): %q", line)
+			return
+		}
 		ip := fields[2]
 		metrics.upnpNonMSearchRequests.WithLabelValues(ip).Inc()
 	// MQTT
 	case "CONNECT":
+		if len(fields) < 3 {
+			log.Printf("Malformed MQTT CONNECT metric (need 3 fields): %q", line)
+			return
+		}
 		version := fields[2]
 		metrics.mqttConnectVersions.WithLabelValues(version).Inc()
 
@@ -216,6 +246,10 @@ func handleMetric(line string, metrics *metrics) {
 		metrics.mqttMalformedConnect.Inc()
 
 	case "SUBSCRIBE":
+		if len(fields) < 4 {
+			log.Printf("Malformed SUBSCRIBE metric (need 4 fields): %q", line)
+			return
+		}
 		topic := fields[2]
 		qos := fields[3]
 		metrics.mqttSubscribeTopics.WithLabelValues(topic, qos).Inc()
@@ -229,10 +263,14 @@ func handleMetric(line string, metrics *metrics) {
 		if len(fields) >= 4 {
 			password = fields[3]
 		}
-		
+
 		metrics.mqttCredentials.WithLabelValues(username, password).Inc()
 
 	case "PUBLISH":
+		if len(fields) < 4 {
+			log.Printf("Malformed PUBLISH metric (need 4 fields): %q", line)
+			return
+		}
 		topic := fields[2]
 		qos := fields[3]
 		metrics.mqttPublishTopics.WithLabelValues(topic, qos).Inc()
@@ -243,6 +281,12 @@ func handleMetric(line string, metrics *metrics) {
 		metrics.mqttUnsubscribe.Inc();
 	case "PUBREC":
 		metrics.mqttPubrec.Inc();
+	case "action":
+		if len(fields) < 4 {
+			return
+		}
+		ip := fields[2]
+		metrics.telnetInput.WithLabelValues(ip).Inc();
 	}
 }
 
@@ -304,7 +348,7 @@ func geoLookup(ipStr string) string {
 		Country struct {
 			ISOCode string `maxminddb:"iso_code"`
 		} `maxminddb:"country"`
-	} 
+	}
 	err := db.Lookup(ip).Decode(&record)
 	if err != nil {
 		log.Panic(err)

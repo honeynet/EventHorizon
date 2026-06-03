@@ -24,21 +24,32 @@
 #define DONT 254
 #define WILL 251
 #define WONT 252
+#define NOP 241
+#define GA 249
 
 int port;
 int delay;
 int maxNoClients;
 
-// Telnet negotiation options
-unsigned char negotiations[][3] = {
-    {IAC, WILL, 1}, 
-    {IAC, DO, 3}, 
-    {IAC, DONT, 5},
-    {IAC, WILL, 31}, 
-    {IAC, DO, 24}, 
-    {IAC, WONT, 39}
+struct iacOption{
+    unsigned char bytes[3];
+    int length;
 };
-int num_options = sizeof(negotiations) / sizeof(negotiations[0]);
+
+struct iacOption options[]={
+    {{IAC,WILL,1},3},
+    {{IAC,DO,3},3},
+    {{IAC,DONT,5},3},
+    {{IAC,WILL,31},3},
+    {{IAC,DO,24},3},
+    {{IAC,WONT,39},3},
+    {{IAC,WILL,32},3},
+    {{IAC,DO,34},3},
+    {{IAC,WONT,35},3},
+    {{IAC,NOP,0},2},
+    {{IAC,GA,0},2},
+};
+int num_options = sizeof(options)/sizeof(options[0]);
 
 // void heartbeatLog() {
 //     syslog(LOG_INFO, "Server is running with %d connected clients. Number of most concurrent connected clients is %d", clientQueueTelnet.length, statsTelnet.mostConcurrentConnections);
@@ -53,7 +64,7 @@ void initializeStats(){
 
 int main(int argc, char *argv[]) {
     setbuf(stdout, NULL);
-    
+
     // testing
     // char msg[256];
     // snprintf(msg, sizeof(msg), "%s connect %s\n",
@@ -66,23 +77,23 @@ int main(int argc, char *argv[]) {
     maxNoClients = atoi(argv[3]);
     initializeStats();
     setFdLimit(maxNoClients);
-    signal(SIGPIPE, SIG_IGN); // Ignore 
+    signal(SIGPIPE, SIG_IGN); // Ignore
     queue_init(&clientQueueTelnet);
-    
+
     int serverSock = createServer(port);
     if (serverSock < 0) {
         fprintf(stderr, "Invalid server socket fd: %d", serverSock);
         exit(EXIT_FAILURE);
     }
-    
+
     struct sockaddr_in clientAddr;
     socklen_t addrLen = sizeof(clientAddr);
-    
+
     struct pollfd fds;
     memset(&fds, 0, sizeof(fds));
     fds.fd = serverSock;
     fds.events = POLLIN;
-    
+
     // long long lastHeartbeat = currentTimeMs();
     while (1) {
         long long now = currentTimeMs();
@@ -98,10 +109,10 @@ int main(int argc, char *argv[]) {
             if(clientQueueTelnet.head->sendNext <= now){
                 struct baseClient *bc = queue_pop(&clientQueueTelnet);
                 struct telnetAndUpnpClient *c = (struct telnetAndUpnpClient *)bc;
-                
+
                 int optionIndex = rand() % num_options;
-                ssize_t out = write(c->fd, negotiations[optionIndex], sizeof(negotiations[optionIndex]));
-                
+                ssize_t out = write(c->fd, options[optionIndex].bytes, options[optionIndex].length);
+
                 if (out == -1) {
                     if (errno == EAGAIN || errno == EWOULDBLOCK) { // Avoid blocking
                         c->base.sendNext = now + delay;
@@ -122,14 +133,44 @@ int main(int argc, char *argv[]) {
                     c->base.sendNext = now + delay;
                     c->base.timeConnected += delay;
                     statsTelnet.totalWastedTime += delay;
+                    char buf[65];
+                    ssize_t r=read(c->fd, buf, sizeof(buf)-1);
+                    if(r<0){
+                        //do nothing
+                    }else if(r==0){
+                        char msg[256];
+                        snprintf(msg, sizeof(msg), "%s disconnect %s %lld\n",
+                            SERVER_ID, c->base.ipaddr, c->base.timeConnected);
+                        printf("%s", msg);
+                        sendMetric(msg);
+                        close(c->fd);
+                        free(c);
+                        continue;
+                    }else{
+                        //terminate null
+                        buf[r]='\0';
+                        for(int i=0;i<r;i++){
+                            if(buf[i]<32 || buf[i]>126) buf[i]='.';
+                            if(buf[i]=='\t') buf[i]=' ';
+                        }
+
+                        //send metric
+                        char msg[256];
+                        snprintf(msg, sizeof(msg), "%s action %s %s\n",
+                            SERVER_ID, c->base.ipaddr, buf);
+                        printf("%s", msg);
+
+                        sendMetric(msg);
+                    }
                     queue_append(&clientQueueTelnet, (struct baseClient *)c);
                 }
-            } else {
+            }else{
                 timeout = clientQueueTelnet.head->sendNext - now;
                 break;
+
             }
         }
-        
+
         int pollResult = poll(&fds, 1, timeout);
         now = currentTimeMs(); // Poll will cause old value to be misrepresenting
         if (pollResult < 0) {

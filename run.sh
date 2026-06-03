@@ -15,7 +15,6 @@ allArgsAreNumbers() {
     done
 }
 
-# TODO: Describe args
 function showHelp() {
     echo "Usage:"
     echo "  $0 start <protocol> [args...]"
@@ -23,24 +22,33 @@ function showHelp() {
     echo "  $0 status"
     echo
     echo "Servers and required arguments:"
+    echo " "
     echo "  telnet <port> <delay> <max-clients>"
-    echo "    - port: "
-    echo "    - delay: "
-    echo "    - max-no-clients: "
-    echo
-    echo "  upnp <http-port> <ssdp-port> <delay> <max-clients>" 
-    echo "    - http-port: "
-    echo "    - ssdp-port: "
-    echo "    - delay: "
-    echo "    - max-clients: "
-    echo
+    echo "      - port: The local port to listen for incoming Telnet connections."
+    echo "      - delay: Time in ms to wait before sending data to trap the client."
+    echo "      - max-clients: Maximum number of concurrent connections allowed."
+    echo " "
+    echo "  upnp <http-port> <ssdp-port> <delay> <max-clients>"
+    echo "      - http-port: Port for HTTP-based UPnP emulation."
+    echo "      - ssdp-port: Port for SSDP discovery traffic (UDP 1900)."
+    echo "      - delay: Response delay in ms to slow down automated scanners."
+    echo "      - max-clients: Limit for simultaneous UPnP connection states."
+    echo " "
     echo "  mqtt <port> <max-events> <epoll-interval> <pubrel-interval> <max-packets> <max-clients>"
-    echo "    - port: "
-    echo "    - max-events: "
-    echo "    - epoll-interval: "
-    echo "    - pubrel-interval: "
-    echo "    - max_packets: "
-    echo "    - max-clients: "
+    echo "      - port: The local port for the MQTT broker emulator."
+    echo "      - max-events: Max events to process in a single epoll_wait cycle."
+    echo "      - epoll-interval: Time in ms to wait between I/O polling cycles."
+    echo "      - pubrel-interval: Delay in ms for the QoS 2 'Publish Release' handshake."
+    echo "      - max-packets: Maximum number of MQTT control packets per session."
+    echo "      - max-clients: Total concurrent IoT clients the engine will trap."
+    echo " "
+    echo "  coap <port> <delay> <ack-timeout> <max-retransmit> <max-clients>"
+    echo "      - port: The local port for the CoAP server emulator."
+    echo "      - delay: Delay in ms between CoAP processing cycles."
+    echo "      - ack-timeout: Initial timeout in ms before retransmitting a confirmable message."
+    echo "      - max-retransmit: Maximum retransmission attempts for confirmable CoAP messages."
+    echo "      - max-clients: Total concurrent IoT clients the engine will trap."
+
 }
 
 function invalidAmountOfArgs() {
@@ -84,7 +92,7 @@ function startMqtt() {
     local pubrelInterval=$4
     local maxPacketsPerClient=$5
     local maxNoClients=$6
-    echo "Starting mqtt_pit with port=$port maxEvents=$maxEvents epollTimeout=$epollTimeout pubrelInterval=$pubrelInterval maxPackets=$maxPackets maxNoClients=$maxNoClients"
+    echo "Starting mqtt_pit with port=$port maxEvents=$maxEvents epollTimeoutInterval=$epollTimeoutInterval pubrelInterval=$pubrelInterval maxPacketsPerClient=$maxPacketsPerClient maxNoClients=$maxNoClients"
     
     exec "$BIN_DIR/mqtt_pit" "$port" "$maxEvents" "$epollTimeoutInterval" "$pubrelInterval" "$maxPacketsPerClient" "$maxNoClients"
 }
