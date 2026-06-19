@@ -11,6 +11,13 @@ services:
       - ${PATH_TO_COUNTRY_MMDB}:/data/GeoLite2-Country.mmdb:ro
     environment:
       - GEO_DB=/data/GeoLite2-Country.mmdb
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "--proxy=off", "http://localhost:9101/metrics"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
 
   telnet_pit:
     build:
@@ -26,7 +33,14 @@ services:
         hard: "${TELNET_MAX_NO_CLIENTS}"
     command: ["start", "telnet", "${TELNET_PORT}", "${TELNET_DELAY_MS}", "${TELNET_MAX_NO_CLIENTS}"]
     depends_on:
-      - prometheus-exporter
+      prometheus-exporter:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost ${TELNET_PORT} || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   upnp_pit:
     build:
@@ -43,7 +57,14 @@ services:
         hard: "${UPNP_MAX_NO_CLIENTS}"
     command: ["start", "upnp", "${UPNP_HTTP_PORT}", "${UPNP_SSDP_PORT}", "${UPNP_DELAY_MS}", "${UPNP_MAX_NO_CLIENTS}"]
     depends_on:
-      - prometheus-exporter
+      prometheus-exporter:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost ${UPNP_HTTP_PORT} || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   mqtt_pit:
     build:
@@ -59,7 +80,14 @@ services:
         hard: "${MQTT_MAX_NO_CLIENTS}"
     command: ["start", "mqtt", "${MQTT_PORT}", "${MQTT_MAX_EVENTS}", "${MQTT_EPOLL_TIMEOUT_INTERVAL_MS}", "${MQTT_PUBREL_INTERVAL_MS}", "${MQTT_MAX_PACKETS_PER_CLIENTS}", "${MQTT_MAX_NO_CLIENTS}"]
     depends_on:
-      - prometheus-exporter
+      prometheus-exporter:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost ${MQTT_PORT} || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   coap_pit:
     build:
@@ -71,7 +99,14 @@ services:
       - tarpit-sock:/tmp  # Share socket with prometheus-exporter
     command: ["start", "coap", "${COAP_PORT}", "${COAP_DELAY_MS}", "${COAP_ACK_TIMEOUT_MS}", "${COAP_MAX_RETRANSMIT}", "${COAP_MAX_NO_CLIENTS}"]
     depends_on:
-      - prometheus-exporter
+      prometheus-exporter:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "nc -zu localhost ${COAP_PORT} || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   endlessh:
     build:
@@ -83,7 +118,14 @@ services:
       - tarpit-sock:/tmp  # Share socket with prometheus-exporter
     command: ["-${SSH_BIND_FAMILY}", "-d ${SSH_DELAY}", "-l ${SSH_MAX_LINE_LENGTH}", "-m ${SSH_MAX_CLIENTS}", "-p ${SSH_PORT}", "-v"]
     depends_on:
-      - prometheus-exporter
+      prometheus-exporter:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost ${SSH_PORT} || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   prometheus:
     image: prom/prometheus
@@ -95,7 +137,14 @@ services:
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
     depends_on:
-      - prometheus-exporter
+      prometheus-exporter:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "--proxy=off", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   grafana:
     image: grafana/grafana-oss:latest
@@ -108,7 +157,8 @@ services:
       - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
       - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
     depends_on:
-      - prometheus
+      prometheus:
+        condition: service_healthy
     environment:
     - GF_LOG_LEVEL=warn
 
