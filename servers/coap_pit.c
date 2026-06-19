@@ -25,6 +25,13 @@
 #define MAX_BUF_LEN 1024
 #define SERVER_ID "CoAP"
 
+static volatile sig_atomic_t keepRunning = 1;
+
+void handleSignal(int sig) {
+    (void)sig;
+    keepRunning = 0;
+}
+
 struct coapClient *clients = NULL;
 
 int port = 5683;
@@ -59,7 +66,7 @@ int sendCoapBlockResponse(uint16_t messageId, uint8_t* token, uint8_t tkl, uint3
     uint32_t block_opt_value = (*blockNumber << 4) | (0b1 << 3) | 0x02;
     uint8_t block_len = (block_opt_value <= 0xFF) ? 1 :
                         (block_opt_value <= 0xFFFF) ? 2 : 3;
-    
+
     int payloadLength = 5;
     int responseLength = 4           // base CoAP header
                    + tkl             // token length
@@ -69,7 +76,7 @@ int sendCoapBlockResponse(uint16_t messageId, uint8_t* token, uint8_t tkl, uint3
                    + 1               // payload marker
                    + payloadLength;  // actual payload
     char response[responseLength];
-    
+
     // Version (1) | Type (CON) | TKL
     response[0] = (0b01 << 6) | (0b0 << 4) | (tkl & 0b1111);;
     // class (2) | detail (5). Content response
@@ -122,6 +129,8 @@ int sendPing(uint16_t messageId, struct sockaddr_in* addr, socklen_t addrLen) {
 int main(int argc, char* argv[]) {
     setbuf(stdout, NULL);
 
+    int timeout = 1000;
+
     // testing
     // char msg[256];
     // snprintf(msg, sizeof(msg), "%s connect %s\n",
@@ -172,14 +181,23 @@ int main(int argc, char* argv[]) {
     pollFd.fd = sockFd;
     pollFd.events = POLLIN;
 
-    while (1) {
+    struct sigaction sa;
+    sa.sa_handler = handleSignal;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    sigaction(SIGINT, &sa, NULL);
+    sigaction(SIGTERM, &sa, NULL);
+    signal(SIGPIPE, SIG_IGN);
+
+    while (keepRunning) {
         long long now = currentTimeMs();
+        timeout = 1000;
 
         while (clientQueueCoap.size > 0) {
             if(clientQueueCoap.heapArray[0]->sendNext <= now){
                 struct baseClient *bc = heap_pop(&clientQueueCoap);
                 struct coapClient *c = (struct coapClient *)bc;
-                
+
                 // Handle retransmits
                 if(!c->receivedAck || !c->receivedRst) {
                     if(c->retransmits < MAX_RETRANSMIT) {
@@ -212,8 +230,8 @@ int main(int argc, char* argv[]) {
                         deleteClient(c);
                         continue;
                     }
-                } 
-                
+                }
+
                 if (c->receivedGet) {
                     sendCoapBlockResponse(c->messageId, c->token, c->tkl, &c->blockNumber, &c->clientAddr, c->addrLen);
                     c->blockNumber += 1;
@@ -221,8 +239,8 @@ int main(int argc, char* argv[]) {
                 } else if (c->receivedRst) {
                     sendPing(c->messageId, &c->clientAddr, c->addrLen);
                     c->receivedRst = false;
-                } 
-                
+                }
+
                 c->base.timeConnected += delay;
                 c->messageId += 1;
                 c->base.sendNext = now + delay;
@@ -236,6 +254,7 @@ int main(int argc, char* argv[]) {
         int pollResult = poll(&pollFd, 1, timeout);
         now = currentTimeMs();
         if (pollResult < 0) {
+            if (errno == EINTR) continue;
             fprintf(stderr, "Poll error with error %s", strerror(errno));
             continue;
         }
@@ -269,7 +288,7 @@ int main(int argc, char* argv[]) {
             printf("  TKL     : %u\n", tkl);
             printf("  Code    : 0x%02X (Class: %u, Detail: %u)\n", code, class, detail);
             printf("  Msg ID  : %u\n", msgId);
-            
+
             // Token (if any)
             printf("  Token   : ");
             for (int i = 0; i < tkl; i++) {
@@ -284,7 +303,7 @@ int main(int argc, char* argv[]) {
                 // Malformed request. Send 4.00 Bad Request
                 uint8_t response[4];
                 uint8_t resp_type = (type == TYPE_CONFIRMABLE) ? TYPE_ACK : TYPE_NON_CONFIRMABLE;
-            
+
                 response[0] = (0b01 << 6) | (resp_type << 4) | 0; // Ver=1, Type=ACK/NON, TKL=0
                 response[1] = (0b100 << 5) | 0b0;                 // Code 4.00 (Bad Request)
                 response[2] = msgId >> 8;
@@ -293,7 +312,7 @@ int main(int argc, char* argv[]) {
 
                 sendto(sockFd, response, resp_len, 0, (struct sockaddr *)&clientAddr, addrLen);
                 continue;
-            } 
+            }
             else if (version != 1){
                 // Must be silently ignored
                 continue;
@@ -302,7 +321,7 @@ int main(int argc, char* argv[]) {
             }
 
             // TODO: Ignore extended methods (send "method not allowed" response)
-            // TODO: Handle requests while the client is still receiving blocks. 
+            // TODO: Handle requests while the client is still receiving blocks.
             struct coapClient* client = findExistingClient(&clientAddr);
             if(client == NULL) {
                 client = malloc(sizeof(struct coapClient));
@@ -332,7 +351,7 @@ int main(int argc, char* argv[]) {
                 printf("%s", msg);
                 sendMetric(msg);
             }
-            
+
             if (type == TYPE_RST) {
                 client->receivedRst = true;
             }
@@ -343,9 +362,9 @@ int main(int argc, char* argv[]) {
             else if (class == CLASS_REQUEST && detail == DETAIL_GET) {
                 printf("GET request from %s of type %d with tkl=%d and msgId1=%u\n", inet_ntoa(clientAddr.sin_addr), type, tkl, msgId);
                 client->receivedGet = true;
-            } 
+            }
 
-            // If a CON (Confirmable) request, first send seperate ACK response. 
+            // If a CON (Confirmable) request, first send seperate ACK response.
             // The response does not need to be confirmable. (5.2.2 and 5.2.3)
             if (type == TYPE_CONFIRMABLE) {
                 uint8_t ack[4];
@@ -359,7 +378,19 @@ int main(int argc, char* argv[]) {
             }
         }
     }
+    printf("Shutting down CoAP server gracefully\n");
+    while (clientQueueCoap.size > 0) {
+        struct baseClient *bc = heap_pop(&clientQueueCoap);
+        struct coapClient *c = (struct coapClient *)bc;
+        char msg[256];
+        snprintf(msg, sizeof(msg), "%s disconnect %s %lld\n",
+            SERVER_ID, c->base.ipaddr, c->base.timeConnected);
+        printf("%s", msg);
+        sendMetric(msg);
+        deleteClient(c);
+    }
 
     close(sockFd);
+    printf("CoAP server shut down successfully\n");
     return 0;
 }
