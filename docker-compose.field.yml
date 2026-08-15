@@ -11,11 +11,18 @@ x-process-healthcheck: &process-healthcheck
   retries: 3
   start_period: 20s
 
+x-tarpit-field-limits: &tarpit-field-limits
+  restart: unless-stopped
+  cpus: "${FIELD_TARPIT_CPU_LIMIT:-0.50}"
+  mem_limit: "${FIELD_TARPIT_MEMORY_LIMIT:-0}"
+  pids_limit: 512
+  healthcheck: *process-healthcheck
+  logging:
+    driver: none
+
 services:
   prometheus-exporter:
     restart: unless-stopped
-    environment:
-      EVENTHORIZON_FIELD_SAFE_MODE: "true"
     ports: !override
       - "127.0.0.1:9101:9101"
     healthcheck: *process-healthcheck
@@ -24,36 +31,53 @@ services:
       org.eventhorizon.field.role: monitoring
 
   telnet_pit:
-    restart: unless-stopped
-    cpus: "${FIELD_TARPIT_CPU_LIMIT:-0.50}"
-    mem_limit: "${FIELD_TARPIT_MEMORY_LIMIT:-0}"
-    pids_limit: 512
+    <<: *tarpit-field-limits
     ports: !override
       - "0.0.0.0:${TELNET_PORT:-23}:${TELNET_PORT:-23}/tcp"
     environment:
       EVENTHORIZON_SESSION_LOG: /dev/null
-    healthcheck: *process-healthcheck
-    logging:
-      driver: none
     labels:
       org.eventhorizon.field.role: tarpit
       org.eventhorizon.field.protocol: telnet
 
   mqtt_pit:
-    restart: unless-stopped
-    cpus: "${FIELD_TARPIT_CPU_LIMIT:-0.50}"
-    mem_limit: "${FIELD_TARPIT_MEMORY_LIMIT:-0}"
-    pids_limit: 512
+    <<: *tarpit-field-limits
     ports: !override
       - "0.0.0.0:${MQTT_PORT:-1883}:${MQTT_PORT:-1883}/tcp"
     environment:
       EVENTHORIZON_SESSION_LOG: /dev/null
-    healthcheck: *process-healthcheck
-    logging:
-      driver: none
     labels:
       org.eventhorizon.field.role: tarpit
       org.eventhorizon.field.protocol: mqtt
+
+  coap_pit:
+    <<: *tarpit-field-limits
+    ports: !override
+      - "0.0.0.0:${COAP_PORT:-5683}:${COAP_PORT:-5683}/udp"
+    environment:
+      EVENTHORIZON_SESSION_LOG: /dev/null
+    labels:
+      org.eventhorizon.field.role: tarpit
+      org.eventhorizon.field.protocol: coap
+
+  upnp_pit:
+    <<: *tarpit-field-limits
+    ports: !override
+      - "0.0.0.0:${UPNP_SSDP_PORT:-1900}:${UPNP_SSDP_PORT:-1900}/udp"
+      - "0.0.0.0:${UPNP_HTTP_PORT:-8080}:${UPNP_HTTP_PORT:-8080}/tcp"
+    environment:
+      EVENTHORIZON_SESSION_LOG: /dev/null
+    labels:
+      org.eventhorizon.field.role: tarpit
+      org.eventhorizon.field.protocol: upnp
+
+  endlessh:
+    <<: *tarpit-field-limits
+    ports: !override
+      - "0.0.0.0:${SSH_PORT:-22}:${SSH_PORT:-22}/tcp"
+    labels:
+      org.eventhorizon.field.role: tarpit
+      org.eventhorizon.field.protocol: ssh
 
   prometheus:
     restart: unless-stopped
@@ -72,21 +96,3 @@ services:
     logging: *rotated-local-logs
     labels:
       org.eventhorizon.field.role: monitoring
-
-  cadvisor:
-    image: ghcr.io/google/cadvisor:v0.57.0
-    restart: unless-stopped
-    ports: !override
-      - "127.0.0.1:8081:8080"
-    logging: *rotated-local-logs
-    labels:
-      org.eventhorizon.field.role: monitoring
-
-  upnp_pit:
-    profiles: ["non-field-protocols"]
-
-  coap_pit:
-    profiles: ["non-field-protocols"]
-
-  endlessh:
-    profiles: ["non-field-protocols"]
