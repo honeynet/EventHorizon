@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""Check Grafana dashboard PromQL against the frozen Metric MVP surface.
+"""Check Grafana dashboard PromQL against the current metric contract.
 
 Every metric family referenced by a dashboard panel must exist in the exporter's
-current exposition. This catches the drift class that the Metric MVP cutover
+current exposition. This catches the drift class that the typed-contract cutover
 produced: panels left querying removed families, or removed label values.
 
 The allowlist below is a literal transcription of the metric-family summary in
 METRICS.md (repo root). When a family is added or removed there, update LIVE.
 
 Usage:  python3 scripts/check_dashboards.py [--json]
-Exit:   0 = no findings outside legacy dashboards, 1 = findings.
+Exit:   0 = no findings, 1 = findings.
 """
 from __future__ import annotations
 
@@ -120,13 +120,6 @@ UNIVERSAL_LABELS = {"job", "instance", "le"}
 # Families scraped from other jobs (cadvisor), not produced by the exporter.
 # Present only when a cost/field compose overlay is running.
 EXTERNAL_PREFIXES = ("container_", "machine_", "cadvisor_", "process_", "go_", "up")
-
-# Findings here are reported as warnings and never fail the run. These files are
-# deliberately preserved pre-Metric-MVP dashboards awaiting a retirement decision.
-# Dashboards whose title carries a "[LEGACY" or "[SUPERSEDED" prefix are treated
-# the same way, so labelling a dashboard is enough to demote it.
-LEGACY_DASHBOARDS = {"telnetDashboard.json"}
-LEGACY_TITLE_PREFIXES = ("[LEGACY", "[SUPERSEDED")
 
 PROMQL_KEYWORDS = {
     "by", "without", "on", "ignoring", "group_left", "group_right", "offset",
@@ -277,23 +270,16 @@ def main() -> int:
     report = []
     all_referenced: set[str] = set()
     fatal = 0
-    warned = 0
 
     for path in files:
         data, findings, referenced = check(path)
-        legacy = (path.name in LEGACY_DASHBOARDS
-                  or str(data.get("title", "")).startswith(LEGACY_TITLE_PREFIXES))
-        if not legacy:
-            all_referenced |= referenced
+        all_referenced |= referenced
         report.append({
-            "file": path.name, "title": data.get("title"), "legacy": legacy,
+            "file": path.name, "title": data.get("title"),
             "findings": findings,
         })
         if findings:
-            if legacy:
-                warned += len(findings)
-            else:
-                fatal += len(findings)
+            fatal += len(findings)
 
     uncovered = sorted(LIVE - all_referenced)
 
@@ -301,18 +287,16 @@ def main() -> int:
         print(json.dumps({
             "dashboards": report,
             "uncovered_families": uncovered,
-            "fatal": fatal, "warnings": warned,
+            "fatal": fatal,
         }, indent=2))
         return 1 if fatal else 0
 
     for entry in report:
-        kind = "LEGACY" if entry["legacy"] else "CURRENT"
-        status = "OK" if not entry["findings"] else ("WARN" if entry["legacy"] else "FAIL")
-        print(f"[{status:4}] {entry['file']}  ({kind})")
+        status = "OK" if not entry["findings"] else "FAIL"
+        print(f"[{status:4}] {entry['file']}  (CURRENT)")
         print(f"         {entry['title']}")
         for f in entry["findings"]:
-            label = "warn" if entry["legacy"] else "FAIL"
-            print(f"         {label}[{f['kind']}]: {f['detail']}")
+            print(f"         FAIL[{f['kind']}]: {f['detail']}")
             print(f"               panel: {f['panel']}")
             print(f"               expr:  {f['expr']}")
         print()
@@ -327,11 +311,10 @@ def main() -> int:
         print("Every live metric family is covered by at least one current-dashboard panel.")
     print()
 
-    tail = f", {warned} warning(s) in legacy/superseded dashboards (not fatal)" if warned else ""
     if fatal:
-        print(f"RESULT: FAIL - {fatal} finding(s) in current dashboards{tail}")
+        print(f"RESULT: FAIL - {fatal} finding(s) in current dashboards")
         return 1
-    print(f"RESULT: PASS - no findings in current dashboards{tail}")
+    print("RESULT: PASS - no findings in current dashboards")
     return 0
 
 

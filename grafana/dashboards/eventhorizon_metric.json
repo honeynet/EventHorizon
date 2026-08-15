@@ -15,7 +15,7 @@
       }
     ]
   },
-  "description": "Current EventHorizon Metric MVP view. Every panel names its canonical observation unit and exact metric family, and states whether it counts active work, finalized work, timing, reliability, or byte evidence. Definitions: METRICS.md.",
+  "description": "Primary EventHorizon protocol measurement view. Panels distinguish current state, finalized work, timing, duration, and reliability using the observation units defined in METRICS.md.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -23,31 +23,10 @@
   "links": [],
   "panels": [
     {
-      "id": 1,
-      "type": "text",
-      "title": "How to read this dashboard",
-      "gridPos": {
-        "h": 10,
-        "w": 24,
-        "x": 0,
-        "y": 0
-      },
-      "options": {
-        "mode": "markdown",
-        "content": "### EventHorizon Metric dashboard\n\n- **Active panels count work that is still open.** A connection or exchange open right now appears there and nowhere else on this page.\n- **Duration histograms count only finalized observations.** Work still open contributes no duration until it reaches its one terminal boundary. **A connection open at both edges of your time range is counted as _active_, and is not counted as a finalization or as a finalized duration.**\n- **Server-side send metrics do not prove client receipt.** They prove EventHorizon handed complete bytes to the local transport \u2014 not receipt, parsing, or application delivery.\n- **Timing shown here is observed, not configured.** Monotonic server-side measurements, not the delay values the tarpits are configured with.\n- **No single panel proves fingerprint resistance or deception effectiveness.** Those are conclusions from controlled baseline-versus-modified experiments, not runtime readings.\n- **Grafana is a supporting operational view, not the deterministic validation source.** Validation results come from the evidence bundles, not this page.\n\nEach protocol section opens with a **lifecycle accounting** strip: `Active now` \u00b7 `Finalized in range` \u00b7 `Duration observations in range`.\n\nExact metric definitions, label schemas, histogram buckets and reconciliation contracts: **`METRICS.md`** (repo root).",
-        "code": {
-          "language": "plaintext",
-          "showLineNumbers": false,
-          "showMiniMap": false
-        }
-      },
-      "transparent": false
-    },
-    {
       "id": 2,
       "type": "stat",
-      "title": "Active work across all protocols",
-      "description": "Producer-owned absolute active gauges \u2014 `current_connected_clients`, `eventhorizon_coap_active_request_exchanges`, `eventhorizon_coap_active_con_response_exchanges`, `eventhorizon_upnp_active_description_responses`. These are current values and are not affected by the selected time range. Each counts open work of a **different** observation unit, so they are deliberately not summed together. None of these counts unique clients, devices, or people.",
+      "title": "Current activity by observation unit",
+      "description": "Producer-owned active gauges: `current_connected_clients`, `eventhorizon_coap_active_request_exchanges`, `eventhorizon_coap_active_con_response_exchanges`, and `eventhorizon_upnp_active_description_responses`. These current values use different observation units and are not summed. SSH is absent because Endlessh cannot observe peer closure and does not publish an active-client gauge.",
       "datasource": {
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
@@ -56,7 +35,7 @@
         "h": 5,
         "w": 24,
         "x": 0,
-        "y": 10
+        "y": 0
       },
       "fieldConfig": {
         "defaults": {
@@ -77,7 +56,83 @@
           },
           "decimals": 0
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Telnet sessions"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#1F3B5B"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "MQTT Network Connections"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#352D62"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "CoAP request exchanges"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#173F43"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "CoAP CON reliability exchanges"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#173F43"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "UPnP description responses"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#572544"
+                }
+              }
+            ]
+          }
+        ]
       },
       "targets": [
         {
@@ -90,7 +145,7 @@
           "instant": true,
           "range": false,
           "refId": "A",
-          "legendFormat": "Active Telnet connections"
+          "legendFormat": "Telnet sessions"
         },
         {
           "datasource": {
@@ -102,7 +157,7 @@
           "instant": true,
           "range": false,
           "refId": "B",
-          "legendFormat": "Active MQTT Network Connections"
+          "legendFormat": "MQTT Network Connections"
         },
         {
           "datasource": {
@@ -114,7 +169,7 @@
           "instant": true,
           "range": false,
           "refId": "C",
-          "legendFormat": "Active CoAP request exchanges"
+          "legendFormat": "CoAP request exchanges"
         },
         {
           "datasource": {
@@ -126,7 +181,7 @@
           "instant": true,
           "range": false,
           "refId": "D",
-          "legendFormat": "Active CoAP CON reliability exchanges"
+          "legendFormat": "CoAP CON reliability exchanges"
         },
         {
           "datasource": {
@@ -138,7 +193,7 @@
           "instant": true,
           "range": false,
           "refId": "E",
-          "legendFormat": "Active UPnP description responses"
+          "legendFormat": "UPnP description responses"
         }
       ],
       "options": {
@@ -152,7 +207,7 @@
         "orientation": "auto",
         "textMode": "auto",
         "wideLayout": true,
-        "colorMode": "none",
+        "colorMode": "background",
         "graphMode": "none",
         "justifyMode": "auto",
         "percentChangeColorMode": "standard",
@@ -162,13 +217,13 @@
     {
       "id": 3,
       "type": "row",
-      "title": "Telnet - tracked Telnet sessions",
+      "title": "Telnet: tracked sessions",
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 15
+        "y": 5
       },
       "panels": []
     },
@@ -176,7 +231,7 @@
       "id": 4,
       "type": "stat",
       "title": "Telnet lifecycle accounting",
-      "description": "Tracked Telnet session lifecycle \u2014 `current_connected_clients{server=\"Telnet\"}`, `eventhorizon_completed_sessions_total`, `eventhorizon_session_duration_ms_count`. **A session open at both edges of the selected range is counted in \"Active now\" and in neither of the other two** \u2014 its duration is not counted until it finishes. \"Finalized\" and \"Duration observations\" are expected to be equal; that is a reconciliation identity, not a coincidence. Counts accepted TCP connections, not unique people or devices.",
+      "description": "Tracked Telnet session lifecycle: `current_connected_clients{server=\"Telnet\"}`, `eventhorizon_completed_sessions_total`, `eventhorizon_session_duration_ms_count`. **A session open at both edges of the selected range is counted in \"Active now\" and in neither of the other two**: its duration is not counted until it finishes. \"Finalized\" and \"Duration observations\" are expected to be equal; that is a reconciliation identity, not a coincidence. Counts accepted TCP connections, not unique people or devices.",
       "datasource": {
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
@@ -185,7 +240,7 @@
         "h": 5,
         "w": 24,
         "x": 0,
-        "y": 16
+        "y": 6
       },
       "fieldConfig": {
         "defaults": {
@@ -193,13 +248,13 @@
           "mappings": [],
           "color": {
             "mode": "fixed",
-            "fixedColor": "text"
+            "fixedColor": "#5794F2"
           },
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "text",
+                "color": "#5794F2",
                 "value": null
               }
             ]
@@ -255,11 +310,11 @@
           "fields": ""
         },
         "orientation": "auto",
-        "textMode": "auto",
-        "wideLayout": true,
-        "colorMode": "none",
+        "textMode": "value_and_name",
+        "wideLayout": false,
+        "colorMode": "value",
         "graphMode": "none",
-        "justifyMode": "auto",
+        "justifyMode": "center",
         "percentChangeColorMode": "standard",
         "showPercentChange": false
       }
@@ -267,8 +322,8 @@
     {
       "id": 5,
       "type": "timeseries",
-      "title": "Telnet connections accepted vs. finished",
-      "description": "Accepted tracked Telnet sessions and Telnet session finalizations \u2014 `total_connects{server=\"Telnet\"}` and `eventhorizon_completed_sessions_total`. Accepted running above finished means sessions are being held open \u2014 that is the tarpit working, not a measurement error.",
+      "title": "Telnet accepted vs. finalized",
+      "description": "Accepted tracked Telnet sessions and Telnet session finalizations: `total_connects{server=\"Telnet\"}` and `eventhorizon_completed_sessions_total`. Accepted running above finished means sessions are being held open: that is the tarpit working, not a measurement error.",
       "datasource": {
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
@@ -277,7 +332,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 21
+        "y": 11
       },
       "fieldConfig": {
         "defaults": {
@@ -300,10 +355,10 @@
             "drawStyle": "line",
             "lineInterpolation": "linear",
             "lineWidth": 2,
-            "fillOpacity": 8,
+            "fillOpacity": 12,
             "gradientMode": "none",
             "spanNulls": false,
-            "showPoints": "auto",
+            "showPoints": "never",
             "pointSize": 5,
             "stacking": {
               "mode": "none",
@@ -361,9 +416,11 @@
       "options": {
         "legend": {
           "showLegend": true,
-          "displayMode": "list",
+          "displayMode": "table",
           "placement": "bottom",
-          "calcs": []
+          "calcs": [
+            "lastNotNull"
+          ]
         },
         "tooltip": {
           "mode": "multi",
@@ -375,8 +432,8 @@
     {
       "id": 6,
       "type": "timeseries",
-      "title": "Telnet connections not yet finished",
-      "description": "Accepted minus finalized over the selected time range \u2014 `total_connects{server=\"Telnet\"}` minus `eventhorizon_completed_sessions_total`. **A non-zero gap can be normal when connections or exchanges are still active. This panel is an operational hint, not deterministic validation proof.** Deterministic reconciliation requires settled boundary scrapes over a complete process epoch; see `METRICS.md`.",
+      "title": "Telnet accepted but not finalized",
+      "description": "Accepted minus finalized over the selected time range: `total_connects{server=\"Telnet\"}` minus `eventhorizon_completed_sessions_total`. **A non-zero gap can be normal when connections or exchanges are still active. This panel is an operational hint, not deterministic validation proof.** Deterministic reconciliation requires settled boundary scrapes over a complete process epoch; see `METRICS.md`.",
       "datasource": {
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
@@ -385,7 +442,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 21
+        "y": 11
       },
       "fieldConfig": {
         "defaults": {
@@ -408,10 +465,10 @@
             "drawStyle": "line",
             "lineInterpolation": "linear",
             "lineWidth": 2,
-            "fillOpacity": 8,
+            "fillOpacity": 12,
             "gradientMode": "none",
             "spanNulls": false,
-            "showPoints": "auto",
+            "showPoints": "never",
             "pointSize": 5,
             "stacking": {
               "mode": "none",
@@ -471,8 +528,8 @@
     {
       "id": 7,
       "type": "bargauge",
-      "title": "Finished Telnet sessions by ending reason",
-      "description": "Telnet session finalization reason \u2014 `eventhorizon_completed_sessions_total{disconnect_reason}`, five bounded values. \"Finalized\" does not mean a login, command, or Telnet negotiation completed successfully, and ordinary inactivity is not itself a finalization reason. **This panel counts finalized sessions only.** This counter uses bounded labels only \u2014 no errno, no error text, no identities.",
+      "title": "Telnet finalizations by reason",
+      "description": "Telnet session finalization reason: `eventhorizon_completed_sessions_total{disconnect_reason}`, five bounded values. \"Finalized\" does not mean a login, command, or Telnet negotiation completed successfully, and ordinary inactivity is not itself a finalization reason. **This panel counts finalized sessions only.** This counter uses bounded labels only: no errno, no error text, no identities.",
       "datasource": {
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
@@ -481,7 +538,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 29
+        "y": 19
       },
       "fieldConfig": {
         "defaults": {
@@ -527,7 +584,7 @@
         },
         "orientation": "horizontal",
         "displayMode": "gradient",
-        "valueMode": "text",
+        "valueMode": "color",
         "showUnfilled": true,
         "sizing": "auto",
         "minVizWidth": 8,
@@ -545,8 +602,8 @@
     {
       "id": 8,
       "type": "bargauge",
-      "title": "How far Telnet sessions got before finishing",
-      "description": "Telnet interaction depth \u2014 `eventhorizon_session_interaction_depth_total{depth_level}`. A bounded final classification of the furthest meaningful application interaction reached: `0` none, `1` incomplete input, `2` exactly one complete non-empty line, `3` meaningful continuation after that line. It is not a command count, a line count, or attacker sophistication. **This panel counts finalized sessions only.**",
+      "title": "Telnet interaction depth at finalization",
+      "description": "Telnet interaction depth: `eventhorizon_session_interaction_depth_total{depth_level}`. A bounded final classification of the furthest meaningful application interaction reached: `0` none, `1` incomplete input, `2` exactly one complete non-empty line, `3` meaningful continuation after that line. It is not a command count, a line count, or attacker sophistication. **This panel counts finalized sessions only.**",
       "datasource": {
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
@@ -555,7 +612,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 29
+        "y": 19
       },
       "fieldConfig": {
         "defaults": {
@@ -601,7 +658,7 @@
         },
         "orientation": "horizontal",
         "displayMode": "gradient",
-        "valueMode": "text",
+        "valueMode": "color",
         "showUnfilled": true,
         "sizing": "auto",
         "minVizWidth": 8,
@@ -620,7 +677,7 @@
       "id": 9,
       "type": "heatmap",
       "title": "Telnet session duration distribution",
-      "description": "Telnet session duration \u2014 `eventhorizon_session_duration_ms`. Monotonic elapsed time from acceptance to the one finalization boundary, observed by the server. It includes time before the first server write. **This panel counts finalized observations only; open sessions are absent.** Not a configured delay, not an active-session age, not a client-perceived latency.",
+      "description": "Telnet session duration: `eventhorizon_session_duration_ms`. Monotonic elapsed time from acceptance to the one finalization boundary, observed by the server. It includes time before the first server write. **This panel counts finalized observations only; open sessions are absent.** Not a configured delay, not an active-session age, not a client-perceived latency.",
       "datasource": {
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
@@ -629,7 +686,7 @@
         "h": 9,
         "w": 12,
         "x": 0,
-        "y": 37
+        "y": 27
       },
       "targets": [
         {
@@ -706,7 +763,7 @@
       "id": 10,
       "type": "stat",
       "title": "Telnet session duration (mean / p50 / p95)",
-      "description": "Telnet session duration \u2014 `eventhorizon_session_duration_ms`. Computed over the selected time range from finalized observations only. Blank means nothing finished in range \u2014 it does not mean nothing is happening; check \"Active now\".",
+      "description": "Telnet session duration: `eventhorizon_session_duration_ms`. Computed over the selected time range from finalized observations only. Blank means nothing finished in range: it does not mean nothing is happening; check \"Active now\".",
       "datasource": {
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
@@ -715,7 +772,7 @@
         "h": 9,
         "w": 12,
         "x": 12,
-        "y": 37
+        "y": 27
       },
       "fieldConfig": {
         "defaults": {
@@ -798,7 +855,7 @@
       "id": 11,
       "type": "stat",
       "title": "Telnet time to first server write (p50 / p95)",
-      "description": "First-write delay \u2014 `eventhorizon_telnet_first_write_delay_ms`. Monotonic elapsed time from an accepted connection to its first successful positive-byte server write. **This is measured server-side timing, not the configured delay.** It is not first-response latency and not time to client receipt. Computed over the selected time range from finalized observations only. Blank means nothing finished in range \u2014 it does not mean nothing is happening; check \"Active now\".",
+      "description": "First-write delay: `eventhorizon_telnet_first_write_delay_ms`. Monotonic elapsed time from an accepted connection to its first successful positive-byte server write. **This is measured server-side timing, not the configured delay.** It is not first-response latency and not time to client receipt. Computed over the selected time range from finalized observations only. Blank means nothing finished in range: it does not mean nothing is happening; check \"Active now\".",
       "datasource": {
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
@@ -807,7 +864,7 @@
         "h": 5,
         "w": 12,
         "x": 0,
-        "y": 46
+        "y": 36
       },
       "fieldConfig": {
         "defaults": {
@@ -815,13 +872,13 @@
           "mappings": [],
           "color": {
             "mode": "fixed",
-            "fixedColor": "text"
+            "fixedColor": "#5794F2"
           },
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "text",
+                "color": "#5794F2",
                 "value": null
               }
             ]
@@ -867,7 +924,7 @@
         "orientation": "auto",
         "textMode": "auto",
         "wideLayout": true,
-        "colorMode": "none",
+        "colorMode": "value",
         "graphMode": "none",
         "justifyMode": "auto",
         "percentChangeColorMode": "standard",
@@ -878,7 +935,7 @@
       "id": 12,
       "type": "stat",
       "title": "Telnet time between server writes (p50 / p95)",
-      "description": "Inter-write interval \u2014 `eventhorizon_telnet_inter_write_interval_ms`. Monotonic elapsed time between consecutive successful positive-byte server writes. **Measured, not configured**; not a response latency and not a round-trip time. Computed over the selected time range from finalized observations only. Blank means nothing finished in range \u2014 it does not mean nothing is happening; check \"Active now\".",
+      "description": "Inter-write interval: `eventhorizon_telnet_inter_write_interval_ms`. Monotonic elapsed time between consecutive successful positive-byte server writes. **Measured, not configured**; not a response latency and not a round-trip time. Computed over the selected time range from finalized observations only. Blank means nothing finished in range: it does not mean nothing is happening; check \"Active now\".",
       "datasource": {
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
@@ -887,7 +944,7 @@
         "h": 5,
         "w": 12,
         "x": 12,
-        "y": 46
+        "y": 36
       },
       "fieldConfig": {
         "defaults": {
@@ -958,7 +1015,7 @@
       "id": 13,
       "type": "timeseries",
       "title": "Telnet read and write errors by reason",
-      "description": "`eventhorizon_read_errors_total` and `eventhorizon_write_errors_total`, four bounded reasons: `timeout`, `reset`, `closed`, `other`. A clean TCP EOF is a peer finalization, not an error, and a positive partial write is byte evidence rather than an error. Zero errors does not prove telemetry completeness. This counter uses bounded labels only \u2014 no errno, no error text, no identities.",
+      "description": "`eventhorizon_read_errors_total` and `eventhorizon_write_errors_total`, four bounded reasons: `timeout`, `reset`, `closed`, `other`. A clean TCP EOF is a peer finalization, not an error, and a positive partial write is byte evidence rather than an error. Zero errors does not prove telemetry completeness. This counter uses bounded labels only: no errno, no error text, no identities.",
       "datasource": {
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
@@ -967,7 +1024,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 51
+        "y": 41
       },
       "fieldConfig": {
         "defaults": {
@@ -990,10 +1047,10 @@
             "drawStyle": "line",
             "lineInterpolation": "linear",
             "lineWidth": 2,
-            "fillOpacity": 8,
+            "fillOpacity": 12,
             "gradientMode": "none",
             "spanNulls": false,
-            "showPoints": "auto",
+            "showPoints": "never",
             "pointSize": 5,
             "stacking": {
               "mode": "none",
@@ -1066,7 +1123,7 @@
       "id": 14,
       "type": "timeseries",
       "title": "Telnet application bytes",
-      "description": "Positive socket-return bytes only \u2014 `eventhorizon_bytes_received_total`, `eventhorizon_bytes_sent_total`. Includes protocol framing, incomplete input, and partial writes; excludes EOF, failed, retryable, and zero-byte I/O. **This is not TCP/IP wire volume and does not prove client receipt.** Container network bytes are the authoritative volume evidence and live on the defender-cost dashboard.",
+      "description": "Positive socket-return bytes only: `eventhorizon_bytes_received_total`, `eventhorizon_bytes_sent_total`. Includes protocol framing, incomplete input, and partial writes; excludes EOF, failed, retryable, and zero-byte I/O. **This is not TCP/IP wire volume and does not prove client receipt.** Container network bytes are the authoritative volume evidence and live in the optional Defender Cost row.",
       "datasource": {
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
@@ -1075,7 +1132,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 51
+        "y": 41
       },
       "fieldConfig": {
         "defaults": {
@@ -1098,10 +1155,10 @@
             "drawStyle": "line",
             "lineInterpolation": "linear",
             "lineWidth": 2,
-            "fillOpacity": 8,
+            "fillOpacity": 12,
             "gradientMode": "none",
             "spanNulls": false,
-            "showPoints": "auto",
+            "showPoints": "never",
             "pointSize": 5,
             "stacking": {
               "mode": "none",
@@ -1173,13 +1230,13 @@
     {
       "id": 26,
       "type": "row",
-      "title": "MQTT - tracked Network Connections",
+      "title": "MQTT: Network Connections",
       "collapsed": true,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 59
+        "y": 49
       },
       "panels": [
         {
@@ -1195,7 +1252,7 @@
             "h": 5,
             "w": 24,
             "x": 0,
-            "y": 60
+            "y": 50
           },
           "fieldConfig": {
             "defaults": {
@@ -1203,13 +1260,13 @@
               "mappings": [],
               "color": {
                 "mode": "fixed",
-                "fixedColor": "text"
+                "fixedColor": "#A78BFA"
               },
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "text",
+                    "color": "#A78BFA",
                     "value": null
                   }
                 ]
@@ -1265,11 +1322,11 @@
               "fields": ""
             },
             "orientation": "auto",
-            "textMode": "auto",
-            "wideLayout": true,
-            "colorMode": "none",
+            "textMode": "value_and_name",
+            "wideLayout": false,
+            "colorMode": "value",
             "graphMode": "none",
-            "justifyMode": "auto",
+            "justifyMode": "center",
             "percentChangeColorMode": "standard",
             "showPercentChange": false
           }
@@ -1277,8 +1334,8 @@
         {
           "id": 16,
           "type": "timeseries",
-          "title": "MQTT Network Connections accepted vs. finished",
-          "description": "Accepted tracked MQTT Network Connections and their finalizations \u2014 `total_connects{server=\"MQTT\"}` and `eventhorizon_mqtt_network_connection_finalizations_total`. Accepted counts TCP acceptance, not accepted CONNECT.",
+          "title": "MQTT accepted vs. finalized",
+          "description": "Accepted tracked MQTT Network Connections and their finalizations: `total_connects{server=\"MQTT\"}` and `eventhorizon_mqtt_network_connection_finalizations_total`. Accepted counts TCP acceptance, not accepted CONNECT.",
           "datasource": {
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
@@ -1287,7 +1344,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 65
+            "y": 55
           },
           "fieldConfig": {
             "defaults": {
@@ -1310,10 +1367,10 @@
                 "drawStyle": "line",
                 "lineInterpolation": "linear",
                 "lineWidth": 2,
-                "fillOpacity": 8,
+                "fillOpacity": 12,
                 "gradientMode": "none",
                 "spanNulls": false,
-                "showPoints": "auto",
+                "showPoints": "never",
                 "pointSize": 5,
                 "stacking": {
                   "mode": "none",
@@ -1371,9 +1428,11 @@
           "options": {
             "legend": {
               "showLegend": true,
-              "displayMode": "list",
+              "displayMode": "table",
               "placement": "bottom",
-              "calcs": []
+              "calcs": [
+                "lastNotNull"
+              ]
             },
             "tooltip": {
               "mode": "multi",
@@ -1385,7 +1444,7 @@
         {
           "id": 17,
           "type": "timeseries",
-          "title": "MQTT Network Connections not yet finished",
+          "title": "MQTT accepted but not finalized",
           "description": "Accepted minus finalized over the selected time range. **A non-zero gap can be normal when connections or exchanges are still active. This panel is an operational hint, not deterministic validation proof.** Deterministic reconciliation requires settled boundary scrapes over a complete process epoch; see `METRICS.md`.",
           "datasource": {
             "type": "prometheus",
@@ -1395,7 +1454,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 65
+            "y": 55
           },
           "fieldConfig": {
             "defaults": {
@@ -1418,10 +1477,10 @@
                 "drawStyle": "line",
                 "lineInterpolation": "linear",
                 "lineWidth": 2,
-                "fillOpacity": 8,
+                "fillOpacity": 12,
                 "gradientMode": "none",
                 "spanNulls": false,
-                "showPoints": "auto",
+                "showPoints": "never",
                 "pointSize": 5,
                 "stacking": {
                   "mode": "none",
@@ -1481,8 +1540,8 @@
         {
           "id": 18,
           "type": "bargauge",
-          "title": "Finished MQTT Network Connections by ending reason",
-          "description": "MQTT Network Connection finalization reason \u2014 `eventhorizon_mqtt_network_connection_finalizations_total{finalization_reason}`, ten bounded values. The first authoritative terminal reason is retained even if later cleanup encounters another failure. It finalizes a transport connection, not persistent MQTT Session State. **This panel counts finalized observations only.**",
+          "title": "MQTT finalizations by reason",
+          "description": "MQTT Network Connection finalization reason: `eventhorizon_mqtt_network_connection_finalizations_total{finalization_reason}`, ten bounded values. The first authoritative terminal reason is retained even if later cleanup encounters another failure. It finalizes a transport connection, not persistent MQTT Session State. **This panel counts finalized observations only.**",
           "datasource": {
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
@@ -1491,7 +1550,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 73
+            "y": 63
           },
           "fieldConfig": {
             "defaults": {
@@ -1537,7 +1596,7 @@
             },
             "orientation": "horizontal",
             "displayMode": "gradient",
-            "valueMode": "text",
+            "valueMode": "color",
             "showUnfilled": true,
             "sizing": "auto",
             "minVizWidth": 8,
@@ -1555,8 +1614,8 @@
         {
           "id": 19,
           "type": "bargauge",
-          "title": "How far MQTT Network Connections got before finishing",
-          "description": "MQTT interaction depth \u2014 `eventhorizon_mqtt_network_connection_interaction_depth_total{depth_level}`. Bounded final classification: `0` no accepted CONNECT, `1` accepted CONNECT without a meaningful operation, `2` one accepted PUBLISH/SUBSCRIBE/UNSUBSCRIBE, `3` at least two. Control packets, acknowledgements, keep-alive traffic, malformed packets, and retransmissions do not increase depth. It is not a packet count, topic count, or QoS depth.",
+          "title": "MQTT interaction depth at finalization",
+          "description": "MQTT interaction depth: `eventhorizon_mqtt_network_connection_interaction_depth_total{depth_level}`. Bounded final classification: `0` no accepted CONNECT, `1` accepted CONNECT without a meaningful operation, `2` one accepted PUBLISH/SUBSCRIBE/UNSUBSCRIBE, `3` at least two. Control packets, acknowledgements, keep-alive traffic, malformed packets, and retransmissions do not increase depth. It is not a packet count, topic count, or QoS depth.",
           "datasource": {
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
@@ -1565,7 +1624,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 73
+            "y": 63
           },
           "fieldConfig": {
             "defaults": {
@@ -1611,7 +1670,7 @@
             },
             "orientation": "horizontal",
             "displayMode": "gradient",
-            "valueMode": "text",
+            "valueMode": "color",
             "showUnfilled": true,
             "sizing": "auto",
             "minVizWidth": 8,
@@ -1630,7 +1689,7 @@
           "id": 20,
           "type": "heatmap",
           "title": "MQTT Network Connection duration distribution",
-          "description": "MQTT Network Connection duration \u2014 `eventhorizon_mqtt_network_connection_duration_ms`. Acceptance to the one finalization boundary, including time before an accepted CONNECT. **Counts finalized observations only; open connections are absent.** This is not an MQTT Session duration and not a CONNECT exchange duration.",
+          "description": "MQTT Network Connection duration: `eventhorizon_mqtt_network_connection_duration_ms`. Acceptance to the one finalization boundary, including time before an accepted CONNECT. **Counts finalized observations only; open connections are absent.** This is not an MQTT Session duration and not a CONNECT exchange duration.",
           "datasource": {
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
@@ -1639,7 +1698,7 @@
             "h": 9,
             "w": 12,
             "x": 0,
-            "y": 81
+            "y": 71
           },
           "targets": [
             {
@@ -1716,7 +1775,7 @@
           "id": 21,
           "type": "stat",
           "title": "MQTT Network Connection duration (mean / p50 / p95)",
-          "description": "MQTT Network Connection duration \u2014 `eventhorizon_mqtt_network_connection_duration_ms`. Computed over the selected time range from finalized observations only. Blank means nothing finished in range \u2014 it does not mean nothing is happening; check \"Active now\".",
+          "description": "MQTT Network Connection duration: `eventhorizon_mqtt_network_connection_duration_ms`. Computed over the selected time range from finalized observations only. Blank means nothing finished in range: it does not mean nothing is happening; check \"Active now\".",
           "datasource": {
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
@@ -1725,7 +1784,7 @@
             "h": 9,
             "w": 12,
             "x": 12,
-            "y": 81
+            "y": 71
           },
           "fieldConfig": {
             "defaults": {
@@ -1808,7 +1867,7 @@
           "id": 22,
           "type": "stat",
           "title": "MQTT CONNECT-to-CONNACK time (p50 / p95)",
-          "description": "MQTT CONNECT-to-CONNACK duration \u2014 `eventhorizon_mqtt_connect_to_connack_duration_ms`. From an accepted MQTT 3.1.1 CONNECT to complete successful transmission of its success CONNACK. Excludes pre-CONNECT connection time and all later activity. **Server-observed: it does not prove the client received or parsed the CONNACK**, and it is not a round-trip or client response time. Computed over the selected time range from finalized observations only. Blank means nothing finished in range \u2014 it does not mean nothing is happening; check \"Active now\".",
+          "description": "MQTT CONNECT-to-CONNACK duration: `eventhorizon_mqtt_connect_to_connack_duration_ms`. From an accepted MQTT 3.1.1 CONNECT to complete successful transmission of its success CONNACK. Excludes pre-CONNECT connection time and all later activity. **Server-observed: it does not prove the client received or parsed the CONNACK**, and it is not a round-trip or client response time. Computed over the selected time range from finalized observations only. Blank means nothing finished in range: it does not mean nothing is happening; check \"Active now\".",
           "datasource": {
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
@@ -1817,7 +1876,7 @@
             "h": 6,
             "w": 12,
             "x": 0,
-            "y": 90
+            "y": 80
           },
           "fieldConfig": {
             "defaults": {
@@ -1825,13 +1884,13 @@
               "mappings": [],
               "color": {
                 "mode": "fixed",
-                "fixedColor": "text"
+                "fixedColor": "#A78BFA"
               },
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "text",
+                    "color": "#A78BFA",
                     "value": null
                   }
                 ]
@@ -1877,7 +1936,7 @@
             "orientation": "auto",
             "textMode": "auto",
             "wideLayout": true,
-            "colorMode": "none",
+            "colorMode": "value",
             "graphMode": "none",
             "justifyMode": "auto",
             "percentChangeColorMode": "standard",
@@ -1897,7 +1956,7 @@
             "h": 6,
             "w": 12,
             "x": 12,
-            "y": 90
+            "y": 80
           },
           "fieldConfig": {
             "defaults": {
@@ -1943,7 +2002,7 @@
             },
             "orientation": "horizontal",
             "displayMode": "gradient",
-            "valueMode": "text",
+            "valueMode": "color",
             "showUnfilled": true,
             "sizing": "auto",
             "minVizWidth": 8,
@@ -1962,7 +2021,7 @@
           "id": 24,
           "type": "timeseries",
           "title": "MQTT read and write errors by reason",
-          "description": "`eventhorizon_read_errors_total` and `eventhorizon_write_errors_total` for MQTT, four bounded reasons. A clean TCP EOF is a peer finalization, not an error. Zero errors does not prove telemetry completeness. This counter uses bounded labels only \u2014 no errno, no error text, no identities.",
+          "description": "`eventhorizon_read_errors_total` and `eventhorizon_write_errors_total` for MQTT, four bounded reasons. A clean TCP EOF is a peer finalization, not an error. Zero errors does not prove telemetry completeness. This counter uses bounded labels only: no errno, no error text, no identities.",
           "datasource": {
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
@@ -1971,7 +2030,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 96
+            "y": 86
           },
           "fieldConfig": {
             "defaults": {
@@ -1994,10 +2053,10 @@
                 "drawStyle": "line",
                 "lineInterpolation": "linear",
                 "lineWidth": 2,
-                "fillOpacity": 8,
+                "fillOpacity": 12,
                 "gradientMode": "none",
                 "spanNulls": false,
-                "showPoints": "auto",
+                "showPoints": "never",
                 "pointSize": 5,
                 "stacking": {
                   "mode": "none",
@@ -2070,7 +2129,7 @@
           "id": 25,
           "type": "timeseries",
           "title": "MQTT application bytes",
-          "description": "Positive socket-return bytes only \u2014 `eventhorizon_bytes_received_total`, `eventhorizon_bytes_sent_total`. Includes protocol framing and partial writes. **Not TCP/IP wire volume; does not prove client receipt.**",
+          "description": "Positive socket-return bytes only: `eventhorizon_bytes_received_total`, `eventhorizon_bytes_sent_total`. Includes protocol framing and partial writes. **Not TCP/IP wire volume; does not prove client receipt.**",
           "datasource": {
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
@@ -2079,7 +2138,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 96
+            "y": 86
           },
           "fieldConfig": {
             "defaults": {
@@ -2102,10 +2161,10 @@
                 "drawStyle": "line",
                 "lineInterpolation": "linear",
                 "lineWidth": 2,
-                "fillOpacity": 8,
+                "fillOpacity": 12,
                 "gradientMode": "none",
                 "spanNulls": false,
-                "showPoints": "auto",
+                "showPoints": "never",
                 "pointSize": 5,
                 "stacking": {
                   "mode": "none",
@@ -2179,20 +2238,20 @@
     {
       "id": 35,
       "type": "row",
-      "title": "CoAP - request exchanges and Confirmable-response reliability",
+      "title": "CoAP: request and CON-response exchanges",
       "collapsed": true,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 105
+        "y": 95
       },
       "panels": [
         {
           "id": 27,
           "type": "stat",
           "title": "CoAP request exchange lifecycle accounting",
-          "description": "Active CoAP request exchange \u2014 `eventhorizon_coap_active_request_exchanges`; finalizations from `eventhorizon_protocol_actions_total{protocol=\"coap\"}`; observations from `eventhorizon_coap_request_exchange_duration_ms_count`. An active request exchange is an accepted supported GET with neither a transmitted matching response nor a termination \u2014 it is an outstanding **request obligation**, not a connected client and not a UDP session. **A request still open at both edges of the selected range is counted in \"Active now\" only.**",
+          "description": "Active CoAP request exchange: `eventhorizon_coap_active_request_exchanges`; finalizations from `eventhorizon_protocol_actions_total{protocol=\"coap\"}`; observations from `eventhorizon_coap_request_exchange_duration_ms_count`. An active request exchange is an accepted supported GET with neither a transmitted matching response nor a termination: it is an outstanding **request obligation**, not a connected client and not a UDP session. **A request still open at both edges of the selected range is counted in \"Active now\" only.**",
           "datasource": {
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
@@ -2201,7 +2260,7 @@
             "h": 5,
             "w": 24,
             "x": 0,
-            "y": 106
+            "y": 96
           },
           "fieldConfig": {
             "defaults": {
@@ -2209,13 +2268,13 @@
               "mappings": [],
               "color": {
                 "mode": "fixed",
-                "fixedColor": "text"
+                "fixedColor": "#56B9B4"
               },
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "text",
+                    "color": "#56B9B4",
                     "value": null
                   }
                 ]
@@ -2271,11 +2330,11 @@
               "fields": ""
             },
             "orientation": "auto",
-            "textMode": "auto",
-            "wideLayout": true,
-            "colorMode": "none",
+            "textMode": "value_and_name",
+            "wideLayout": false,
+            "colorMode": "value",
             "graphMode": "none",
-            "justifyMode": "auto",
+            "justifyMode": "center",
             "percentChangeColorMode": "standard",
             "showPercentChange": false
           }
@@ -2284,7 +2343,7 @@
           "id": 28,
           "type": "stat",
           "title": "CoAP request handling time (p50 / p95 by outcome)",
-          "description": "CoAP request-exchange duration \u2014 `eventhorizon_coap_request_exchange_duration_ms{outcome}`. From acceptance of the first non-duplicate supported GET until either the first matching response is transmitted (`response_sent`) or the exchange is terminated (`terminated`). It excludes duplicates, response retransmissions, and **all later Acknowledgement waiting** \u2014 that time belongs to the CoAP reliability panels below. Not a CoAP session duration. `response_sent` proves server-side transmission, not client receipt. Computed over the selected time range from finalized observations only. Blank means nothing finished in range \u2014 it does not mean nothing is happening; check \"Active now\".",
+          "description": "CoAP request-exchange duration: `eventhorizon_coap_request_exchange_duration_ms{outcome}`. From acceptance of the first non-duplicate supported GET until either the first matching response is transmitted (`response_sent`) or the exchange is terminated (`terminated`). It excludes duplicates, response retransmissions, and **all later Acknowledgement waiting**: that time belongs to the CoAP reliability panels below. Not a CoAP session duration. `response_sent` proves server-side transmission, not client receipt. Computed over the selected time range from finalized observations only. Blank means nothing finished in range: it does not mean nothing is happening; check \"Active now\".",
           "datasource": {
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
@@ -2293,7 +2352,7 @@
             "h": 7,
             "w": 12,
             "x": 0,
-            "y": 111
+            "y": 101
           },
           "fieldConfig": {
             "defaults": {
@@ -2363,7 +2422,7 @@
         {
           "id": 29,
           "type": "timeseries",
-          "title": "Finished CoAP request exchanges by outcome",
+          "title": "CoAP request outcomes",
           "description": "`eventhorizon_coap_request_exchange_duration_ms_count{outcome}`. Shows **when** request exchanges reached a terminal boundary. Two mutually exclusive outcomes: `response_sent` and `terminated`.",
           "datasource": {
             "type": "prometheus",
@@ -2373,7 +2432,7 @@
             "h": 7,
             "w": 12,
             "x": 12,
-            "y": 111
+            "y": 101
           },
           "fieldConfig": {
             "defaults": {
@@ -2396,10 +2455,10 @@
                 "drawStyle": "line",
                 "lineInterpolation": "linear",
                 "lineWidth": 2,
-                "fillOpacity": 8,
+                "fillOpacity": 12,
                 "gradientMode": "none",
                 "spanNulls": false,
-                "showPoints": "auto",
+                "showPoints": "never",
                 "pointSize": 5,
                 "stacking": {
                   "mode": "none",
@@ -2460,7 +2519,7 @@
           "id": 30,
           "type": "stat",
           "title": "CoAP CON reliability lifecycle accounting",
-          "description": "Active CoAP CON-response exchange \u2014 `eventhorizon_coap_active_con_response_exchanges`; finalizations from `eventhorizon_protocol_actions_total{protocol=\"coap\"}`; observations from `eventhorizon_coap_con_response_exchange_duration_ms_count`. A successfully transmitted outbound Confirmable response still awaiting a matching Acknowledgement or Reset and not yet retry-exhausted. It is an outstanding **message-layer obligation**, independent from the request exchange above and not an active endpoint. Retransmissions are non-terminal and never finalize it; duplicate and late control messages create no second outcome.",
+          "description": "Active CoAP CON-response exchange: `eventhorizon_coap_active_con_response_exchanges`; finalizations from `eventhorizon_protocol_actions_total{protocol=\"coap\"}`; observations from `eventhorizon_coap_con_response_exchange_duration_ms_count`. A successfully transmitted outbound Confirmable response still awaiting a matching Acknowledgement or Reset and not yet retry-exhausted. It is an outstanding **message-layer obligation**, independent from the request exchange above and not an active endpoint. Retransmissions are non-terminal and never finalize it; duplicate and late control messages create no second outcome.",
           "datasource": {
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
@@ -2469,7 +2528,7 @@
             "h": 5,
             "w": 24,
             "x": 0,
-            "y": 118
+            "y": 108
           },
           "fieldConfig": {
             "defaults": {
@@ -2477,13 +2536,13 @@
               "mappings": [],
               "color": {
                 "mode": "fixed",
-                "fixedColor": "text"
+                "fixedColor": "#56B9B4"
               },
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "text",
+                    "color": "#56B9B4",
                     "value": null
                   }
                 ]
@@ -2539,11 +2598,11 @@
               "fields": ""
             },
             "orientation": "auto",
-            "textMode": "auto",
-            "wideLayout": true,
-            "colorMode": "none",
+            "textMode": "value_and_name",
+            "wideLayout": false,
+            "colorMode": "value",
             "graphMode": "none",
-            "justifyMode": "auto",
+            "justifyMode": "center",
             "percentChangeColorMode": "standard",
             "showPercentChange": false
           }
@@ -2552,7 +2611,7 @@
           "id": 31,
           "type": "stat",
           "title": "CoAP reliability waiting time (p50 / p95 by outcome)",
-          "description": "CoAP CON-response exchange duration \u2014 `eventhorizon_coap_con_response_exchange_duration_ms{outcome}`. From the first successful outbound Confirmable response transmission until the first matching Acknowledgement, first matching Reset, or retry exhaustion. **Includes retransmission waiting** and excludes all request-exchange time before the response was sent. Three bounded outcomes: `ack_received`, `rst_received`, `retry_exhausted`. Computed over the selected time range from finalized observations only. Blank means nothing finished in range \u2014 it does not mean nothing is happening; check \"Active now\".",
+          "description": "CoAP CON-response exchange duration: `eventhorizon_coap_con_response_exchange_duration_ms{outcome}`. From the first successful outbound Confirmable response transmission until the first matching Acknowledgement, first matching Reset, or retry exhaustion. **Includes retransmission waiting** and excludes all request-exchange time before the response was sent. Three bounded outcomes: `ack_received`, `rst_received`, `retry_exhausted`. Computed over the selected time range from finalized observations only. Blank means nothing finished in range: it does not mean nothing is happening; check \"Active now\".",
           "datasource": {
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
@@ -2561,7 +2620,7 @@
             "h": 7,
             "w": 12,
             "x": 0,
-            "y": 123
+            "y": 113
           },
           "fieldConfig": {
             "defaults": {
@@ -2631,7 +2690,7 @@
         {
           "id": 32,
           "type": "timeseries",
-          "title": "Finished CoAP CON reliability exchanges by outcome",
+          "title": "CoAP CON reliability outcomes",
           "description": "`eventhorizon_coap_con_response_exchange_duration_ms_count{outcome}`. Shows **when** outbound Confirmable response exchanges reached a terminal boundary.",
           "datasource": {
             "type": "prometheus",
@@ -2641,7 +2700,7 @@
             "h": 7,
             "w": 12,
             "x": 12,
-            "y": 123
+            "y": 113
           },
           "fieldConfig": {
             "defaults": {
@@ -2664,10 +2723,10 @@
                 "drawStyle": "line",
                 "lineInterpolation": "linear",
                 "lineWidth": 2,
-                "fillOpacity": 8,
+                "fillOpacity": 12,
                 "gradientMode": "none",
                 "spanNulls": false,
-                "showPoints": "auto",
+                "showPoints": "never",
                 "pointSize": 5,
                 "stacking": {
                   "mode": "none",
@@ -2728,7 +2787,7 @@
           "id": 33,
           "type": "bargauge",
           "title": "CoAP protocol actions",
-          "description": "`eventhorizon_protocol_actions_total{protocol=\"coap\"}`, eight bounded actions. Request actions are Token-correlated; CON-response reliability actions are Message-ID-correlated \u2014 the two populations are independent. A sent or retransmitted action requires `sendto()` to return the exact encoded datagram length. Scoped to CoAP deliberately: a family-wide sum across protocols has no useful meaning.",
+          "description": "`eventhorizon_protocol_actions_total{protocol=\"coap\"}`, eight bounded actions. Request actions are Token-correlated; CON-response reliability actions are Message-ID-correlated: the two populations are independent. A sent or retransmitted action requires `sendto()` to return the exact encoded datagram length. Scoped to CoAP deliberately: a family-wide sum across protocols has no useful meaning.",
           "datasource": {
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
@@ -2737,7 +2796,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 130
+            "y": 120
           },
           "fieldConfig": {
             "defaults": {
@@ -2783,7 +2842,7 @@
             },
             "orientation": "horizontal",
             "displayMode": "gradient",
-            "valueMode": "text",
+            "valueMode": "color",
             "showUnfilled": true,
             "sizing": "auto",
             "minVizWidth": 8,
@@ -2802,7 +2861,7 @@
           "id": 34,
           "type": "timeseries",
           "title": "CoAP write errors by reason",
-          "description": "`eventhorizon_write_errors_total{protocol=\"coap\"}`, four bounded reasons. A short positive UDP send emits no sent action and is recorded here with reason `other`. Receive failures and malformed datagrams precede the supported-request boundary and are not counted here. This counter uses bounded labels only \u2014 no errno, no error text, no identities.",
+          "description": "`eventhorizon_write_errors_total{protocol=\"coap\"}`, four bounded reasons. A short positive UDP send emits no sent action and is recorded here with reason `other`. Receive failures and malformed datagrams precede the supported-request boundary and are not counted here. This counter uses bounded labels only: no errno, no error text, no identities.",
           "datasource": {
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
@@ -2811,7 +2870,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 130
+            "y": 120
           },
           "fieldConfig": {
             "defaults": {
@@ -2834,10 +2893,10 @@
                 "drawStyle": "line",
                 "lineInterpolation": "linear",
                 "lineWidth": 2,
-                "fillOpacity": 8,
+                "fillOpacity": 12,
                 "gradientMode": "none",
                 "spanNulls": false,
-                "showPoints": "auto",
+                "showPoints": "never",
                 "pointSize": 5,
                 "stacking": {
                   "mode": "none",
@@ -2899,13 +2958,13 @@
     {
       "id": 42,
       "type": "row",
-      "title": "UPnP - SSDP discovery and device-description exchanges",
+      "title": "UPnP: discovery and description responses",
       "collapsed": true,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 139
+        "y": 129
       },
       "panels": [
         {
@@ -2921,7 +2980,7 @@
             "h": 7,
             "w": 12,
             "x": 0,
-            "y": 140
+            "y": 135
           },
           "fieldConfig": {
             "defaults": {
@@ -2967,7 +3026,7 @@
             },
             "orientation": "horizontal",
             "displayMode": "gradient",
-            "valueMode": "text",
+            "valueMode": "color",
             "showUnfilled": true,
             "sizing": "auto",
             "minVizWidth": 8,
@@ -2986,7 +3045,7 @@
           "id": 37,
           "type": "bargauge",
           "title": "UPnP device-description actions",
-          "description": "`eventhorizon_protocol_actions_total{protocol=\"upnp\"}` restricted to the HTTP device-description exchange: `description_get_received`, `description_response_started`, `description_response_completed`, `description_response_terminated`. A valid GET that never produces a positive-byte write is a pre-start failure \u2014 it never starts a response and therefore never terminates one.",
+          "description": "`eventhorizon_protocol_actions_total{protocol=\"upnp\"}` restricted to the HTTP device-description exchange: `description_get_received`, `description_response_started`, `description_response_completed`, `description_response_terminated`. A valid GET that never produces a positive-byte write is a pre-start failure: it never starts a response and therefore never terminates one.",
           "datasource": {
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
@@ -2995,7 +3054,7 @@
             "h": 7,
             "w": 12,
             "x": 12,
-            "y": 140
+            "y": 135
           },
           "fieldConfig": {
             "defaults": {
@@ -3041,7 +3100,7 @@
             },
             "orientation": "horizontal",
             "displayMode": "gradient",
-            "valueMode": "text",
+            "valueMode": "color",
             "showUnfilled": true,
             "sizing": "auto",
             "minVizWidth": 8,
@@ -3060,7 +3119,7 @@
           "id": 38,
           "type": "stat",
           "title": "UPnP description response lifecycle accounting",
-          "description": "Active description response \u2014 `eventhorizon_upnp_active_description_responses`; finalizations from `eventhorizon_protocol_actions_total{protocol=\"upnp\"}`; observations from `eventhorizon_upnp_description_stream_duration_ms_count`. **UPnP description responses still active** \u2014 started by a first positive-byte write but not yet completed or terminated \u2014 are counted in \"Active now\" and contribute no duration. Its current count is an independently observed response-state measurement, not a connected-client count and not derived from the action counters.",
+          "description": "Active description response: `eventhorizon_upnp_active_description_responses`; finalizations from `eventhorizon_protocol_actions_total{protocol=\"upnp\"}`; observations from `eventhorizon_upnp_description_stream_duration_ms_count`. **UPnP description responses still active**: started by a first positive-byte write but not yet completed or terminated: are counted in \"Active now\" and contribute no duration. Its current count is an independently observed response-state measurement, not a connected-client count and not derived from the action counters.",
           "datasource": {
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
@@ -3069,7 +3128,7 @@
             "h": 5,
             "w": 24,
             "x": 0,
-            "y": 147
+            "y": 130
           },
           "fieldConfig": {
             "defaults": {
@@ -3077,13 +3136,13 @@
               "mappings": [],
               "color": {
                 "mode": "fixed",
-                "fixedColor": "text"
+                "fixedColor": "#F07AB8"
               },
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "text",
+                    "color": "#F07AB8",
                     "value": null
                   }
                 ]
@@ -3139,11 +3198,11 @@
               "fields": ""
             },
             "orientation": "auto",
-            "textMode": "auto",
-            "wideLayout": true,
-            "colorMode": "none",
+            "textMode": "value_and_name",
+            "wideLayout": false,
+            "colorMode": "value",
             "graphMode": "none",
-            "justifyMode": "auto",
+            "justifyMode": "center",
             "percentChangeColorMode": "standard",
             "showPercentChange": false
           }
@@ -3152,7 +3211,7 @@
           "id": 39,
           "type": "stat",
           "title": "UPnP description response time (p50 / p95 by outcome)",
-          "description": "Description stream duration \u2014 `eventhorizon_upnp_description_stream_duration_ms{outcome}`. From description response start (first positive-byte write) to its one completion or termination outcome. `completed` requires complete HTTP/1.1 headers and exactly the declared `Content-Length` bytes of a valid `Content-Type: text/xml` description written within 30 seconds. **This duration is observed by the server. It does not prove the client received the response.** Not a request-to-response latency and not an active response age. Computed over the selected time range from finalized observations only. Blank means nothing finished in range \u2014 it does not mean nothing is happening; check \"Active now\".",
+          "description": "Description stream duration: `eventhorizon_upnp_description_stream_duration_ms{outcome}`. From description response start (first positive-byte write) to its one completion or termination outcome. `completed` requires complete HTTP/1.1 headers and exactly the declared `Content-Length` bytes of a valid `Content-Type: text/xml` description written within 30 seconds. **This duration is observed by the server. It does not prove the client received the response.** Not a request-to-response latency and not an active response age. Computed over the selected time range from finalized observations only. Blank means nothing finished in range: it does not mean nothing is happening; check \"Active now\".",
           "datasource": {
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
@@ -3161,7 +3220,7 @@
             "h": 7,
             "w": 12,
             "x": 0,
-            "y": 152
+            "y": 142
           },
           "fieldConfig": {
             "defaults": {
@@ -3231,7 +3290,7 @@
         {
           "id": 40,
           "type": "timeseries",
-          "title": "Finished UPnP description responses by outcome",
+          "title": "UPnP description response outcomes",
           "description": "`eventhorizon_upnp_description_stream_duration_ms_count{outcome}`. Shows **when** description responses reached a terminal boundary. Two mutually exclusive outcomes: `completed` and `terminated`.",
           "datasource": {
             "type": "prometheus",
@@ -3241,7 +3300,7 @@
             "h": 7,
             "w": 12,
             "x": 12,
-            "y": 152
+            "y": 142
           },
           "fieldConfig": {
             "defaults": {
@@ -3264,10 +3323,10 @@
                 "drawStyle": "line",
                 "lineInterpolation": "linear",
                 "lineWidth": 2,
-                "fillOpacity": 8,
+                "fillOpacity": 12,
                 "gradientMode": "none",
                 "spanNulls": false,
-                "showPoints": "auto",
+                "showPoints": "never",
                 "pointSize": 5,
                 "stacking": {
                   "mode": "none",
@@ -3328,7 +3387,7 @@
           "id": 41,
           "type": "timeseries",
           "title": "UPnP write errors by reason",
-          "description": "`eventhorizon_write_errors_total{protocol=\"upnp\"}`, four bounded reasons. Covers write failures crossing the frozen UPnP reliability boundaries, including SSDP discovery responses and description-response writes. This counter uses bounded labels only \u2014 no errno, no error text, no identities.",
+          "description": "`eventhorizon_write_errors_total{protocol=\"upnp\"}`, four bounded reasons. Covers write failures crossing the frozen UPnP reliability boundaries, including SSDP discovery responses and description-response writes. This counter uses bounded labels only: no errno, no error text, no identities.",
           "datasource": {
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
@@ -3337,7 +3396,7 @@
             "h": 7,
             "w": 24,
             "x": 0,
-            "y": 159
+            "y": 149
           },
           "fieldConfig": {
             "defaults": {
@@ -3360,10 +3419,10 @@
                 "drawStyle": "line",
                 "lineInterpolation": "linear",
                 "lineWidth": 2,
-                "fillOpacity": 8,
+                "fillOpacity": 12,
                 "gradientMode": "none",
                 "spanNulls": false,
-                "showPoints": "auto",
+                "showPoints": "never",
                 "pointSize": 5,
                 "stacking": {
                   "mode": "none",
@@ -3431,35 +3490,14 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 166
+        "y": 174
       },
       "panels": [
-        {
-          "id": 43,
-          "type": "text",
-          "title": "How to read telemetry health",
-          "gridPos": {
-            "h": 9,
-            "w": 24,
-            "x": 0,
-            "y": 167
-          },
-          "options": {
-            "mode": "markdown",
-            "content": "### What this section does and does not tell you\n\nThe exporter rejects any metric datagram that is empty, missing required fields, in an unknown format, from an unknown producer, numerically invalid, or carries an unsupported event. Rejection happens **before any business mutation**, so a rejected datagram never partially updates a metric. Rejections are counted below.\n\n**Zero rejected metric datagrams does not prove every producer event was delivered.** The MVP has no producer epoch, sequence number, or replay cache, so there is no delivery-completeness measurement and no telemetry-reliability percentage:\n\n- a datagram lost in transit is **invisible** here;\n- a duplicated otherwise-valid datagram may be applied again;\n- exporter restart resets all counters and gauges, and a gauge only recovers when a later producer event carries absolute state;\n- telemetry-send failure never changes or rolls back the protocol outcome.\n\nWhen evidence is incomplete, the affected reconciliation result is `INCONCLUSIVE` \u2014 not a pass. See \"Explicitly deferred hardening\" in `METRICS.md`.",
-            "code": {
-              "language": "plaintext",
-              "showLineNumbers": false,
-              "showMiniMap": false
-            }
-          },
-          "transparent": false
-        },
         {
           "id": 44,
           "type": "timeseries",
           "title": "Rejected metric datagrams by reason",
-          "description": "`eventhorizon_exporter_malformed_messages_total{reason}`, six bounded reasons: `empty_message`, `missing_fields`, `unknown_format`, `unknown_server`, `invalid_number`, `unsupported_event`. Counts datagrams the exporter observed and rejected. It does not measure valid-datagram delivery completeness or duplicate delivery. This counter uses bounded labels only \u2014 no errno, no error text, no identities.",
+          "description": "`eventhorizon_exporter_malformed_messages_total{reason}` counts datagrams rejected before metric mutation. Labels are bounded and contain no errno, error text, or identity. Zero does not prove delivery completeness: lost datagrams are invisible, valid duplicates can be applied again, and exporter restart resets in-memory state.",
           "datasource": {
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
@@ -3468,7 +3506,7 @@
             "h": 7,
             "w": 16,
             "x": 0,
-            "y": 176
+            "y": 175
           },
           "fieldConfig": {
             "defaults": {
@@ -3491,10 +3529,10 @@
                 "drawStyle": "line",
                 "lineInterpolation": "linear",
                 "lineWidth": 2,
-                "fillOpacity": 8,
+                "fillOpacity": 12,
                 "gradientMode": "none",
                 "spanNulls": false,
-                "showPoints": "auto",
+                "showPoints": "never",
                 "pointSize": 5,
                 "stacking": {
                   "mode": "none",
@@ -3540,9 +3578,11 @@
           "options": {
             "legend": {
               "showLegend": true,
-              "displayMode": "list",
+              "displayMode": "table",
               "placement": "bottom",
-              "calcs": []
+              "calcs": [
+                "lastNotNull"
+              ]
             },
             "tooltip": {
               "mode": "multi",
@@ -3555,7 +3595,7 @@
           "id": 45,
           "type": "stat",
           "title": "Rejected metric datagrams in range",
-          "description": "`eventhorizon_exporter_malformed_messages_total` summed over the selected time range. A zero here means no datagram was rejected \u2014 it does **not** mean every producer event arrived.",
+          "description": "`eventhorizon_exporter_malformed_messages_total` summed over the selected range. Zero means the exporter rejected no observed datagram. It does not prove that every producer event arrived or that no valid datagram was duplicated.",
           "datasource": {
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
@@ -3564,22 +3604,25 @@
             "h": 7,
             "w": 8,
             "x": 16,
-            "y": 176
+            "y": 175
           },
           "fieldConfig": {
             "defaults": {
               "unit": "none",
               "mappings": [],
               "color": {
-                "mode": "fixed",
-                "fixedColor": "text"
+                "mode": "thresholds"
               },
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "text",
+                    "color": "#1F5F3B",
                     "value": null
+                  },
+                  {
+                    "color": "#7A4B12",
+                    "value": 1
                   }
                 ]
               },
@@ -3612,45 +3655,24 @@
             "orientation": "auto",
             "textMode": "auto",
             "wideLayout": true,
-            "colorMode": "none",
+            "colorMode": "background",
             "graphMode": "none",
             "justifyMode": "auto",
             "percentChangeColorMode": "standard",
             "showPercentChange": false
           }
-        },
-        {
-          "id": 46,
-          "type": "text",
-          "title": "Where the authoritative definitions live",
-          "gridPos": {
-            "h": 6,
-            "w": 24,
-            "x": 0,
-            "y": 183
-          },
-          "options": {
-            "mode": "markdown",
-            "content": "This dashboard is a **supporting operational view**, not the source of truth.\n\n- Exact metric definitions, label schemas, histogram buckets, reconciliation contracts, and what each family does and does not prove: **`METRICS.md`** (repo root).\n- Deterministic checks live in the repository's unit tests and `scripts/smoke.sh` \u2014 not on this page.",
-            "code": {
-              "language": "plaintext",
-              "showLineNumbers": false,
-              "showMiniMap": false
-            }
-          },
-          "transparent": false
         }
       ]
     },
     {
       "type": "row",
-      "title": "SSH (Endlessh) - observed tracking boundaries",
+      "title": "SSH / Endlessh: tracked boundaries",
       "collapsed": true,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 167
+        "y": 156
       },
       "datasource": {
         "type": "prometheus",
@@ -3658,29 +3680,14 @@
       },
       "panels": [
         {
-          "type": "text",
-          "title": "How to read the SSH row",
-          "gridPos": {
-            "h": 7,
-            "w": 24,
-            "x": 0,
-            "y": 1
-          },
-          "options": {
-            "mode": "markdown",
-            "content": "SSH is provided through the integrated Endlessh tarpit. **Accepted connections are observed exactly.**\n\n**Tracked-client lifetime is not peer connection duration.** Endlessh does not read client sockets, so peer disconnect is not directly observed. A tracked client ends when a scheduled write eventually fails and Endlessh removes it. The configured write cadence (`SSH_DELAY`) therefore influences observed lifetime, and detection may occur multiple write intervals after the peer has already left.\n\n`write_failed` records only that a scheduled write eventually failed and the tracked client was removed. It does not identify the exact peer-disconnect time, and does not necessarily identify why the peer became unreachable.\n\nOnly `observation_end_reason=\"write_failed\"` is shown in the lifetime distribution. `server_shutdown` observations are right-censored and are counted separately. Do not compare SSH tracked-client lifetime directly with Telnet session duration, which finalizes on an observed read-side terminal boundary.\n\nDefinitions and the full boundary contract: `METRICS.md`, section \"SSH boundaries\"."
-          },
-          "id": 49
-        },
-        {
           "type": "timeseries",
           "title": "Accepted SSH connections",
-          "description": "Accepted SSH TCP connections \u2014 `total_connects{server=\"SSH\"}`. A successful accept() is an exact accepted-connection boundary. SSH publishes no active-client gauge, because Endlessh does not read client sockets and so cannot observe when a peer has gone.",
+          "description": "Accepted SSH TCP connections from `total_connects{server=\"SSH\"}`. A successful `accept()` is exact. SSH has no active-client gauge because Endlessh does not read client sockets and cannot observe when a peer has gone.",
           "gridPos": {
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 8
+            "y": 157
           },
           "datasource": {
             "type": "prometheus",
@@ -3703,13 +3710,40 @@
             "defaults": {
               "custom": {
                 "drawStyle": "line",
-                "lineWidth": 1,
-                "fillOpacity": 10,
+                "lineInterpolation": "linear",
+                "lineWidth": 2,
+                "fillOpacity": 12,
+                "gradientMode": "none",
+                "spanNulls": false,
+                "showPoints": "never",
+                "pointSize": 5,
+                "stacking": {
+                  "mode": "none",
+                  "group": "A"
+                },
+                "axisPlacement": "auto",
+                "axisLabel": "",
+                "axisColorMode": "text",
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
                 "hideFrom": {
                   "legend": false,
                   "tooltip": false,
                   "viz": false
+                },
+                "insertNulls": false,
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "thresholdsStyle": {
+                  "mode": "off"
                 }
+              },
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "#8F84D8"
               },
               "unit": "short",
               "min": 0
@@ -3734,13 +3768,13 @@
         },
         {
           "type": "stat",
-          "title": "Right-censored observations (server_shutdown)",
-          "description": "Tracked-client observations that ended because the server stopped while the client was still tracked \u2014 `eventhorizon_ssh_tracked_client_lifetime_ms_count{observation_end_reason=\"server_shutdown\"}`. The observation ended for a server-side reason, so the tracked-client lifetime is at least the recorded value and its true extent is unknown. These are excluded from the lifetime distribution beside this panel.",
+          "title": "Right-censored at server shutdown",
+          "description": "Tracked-client observations that ended because the server stopped while the client was still tracked: `eventhorizon_ssh_tracked_client_lifetime_ms_count{observation_end_reason=\"server_shutdown\"}`. The observation ended for a server-side reason, so the tracked-client lifetime is at least the recorded value and its true extent is unknown. These are excluded from the lifetime distribution beside this panel.",
           "gridPos": {
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 8
+            "y": 157
           },
           "datasource": {
             "type": "prometheus",
@@ -3766,7 +3800,7 @@
               "decimals": 0,
               "color": {
                 "mode": "fixed",
-                "fixedColor": "text"
+                "fixedColor": "#8F84D8"
               },
               "mappings": []
             },
@@ -3776,7 +3810,7 @@
             "colorMode": "value",
             "graphMode": "none",
             "justifyMode": "auto",
-            "orientation": "auto",
+            "orientation": "horizontal",
             "reduceOptions": {
               "calcs": [
                 "lastNotNull"
@@ -3784,7 +3818,7 @@
               "fields": "",
               "values": false
             },
-            "textMode": "auto",
+            "textMode": "value_and_name",
             "showPercentChange": false,
             "wideLayout": true,
             "percentChangeColorMode": "standard"
@@ -3793,13 +3827,13 @@
         },
         {
           "type": "heatmap",
-          "title": "Tracked-client lifetime distribution (write_failed only)",
-          "description": "Observed lifetime of Endlessh-tracked SSH clients \u2014 `eventhorizon_ssh_tracked_client_lifetime_ms{observation_end_reason=\"write_failed\"}`. From accepted TCP connection until a scheduled write failed and Endlessh removed the tracked client. **This is not peer connection duration:** peer EOF is not directly observed, the recorded value does not identify the exact peer-disconnect time or necessarily its cause, and detection may occur multiple write intervals later. Right-censored `server_shutdown` observations are excluded.",
+          "title": "Tracked-client lifetime: write failures",
+          "description": "Observed lifetime of Endlessh-tracked SSH clients: `eventhorizon_ssh_tracked_client_lifetime_ms{observation_end_reason=\"write_failed\"}`. From accepted TCP connection until a scheduled write failed and Endlessh removed the tracked client. **This is not peer connection duration:** peer EOF is not directly observed, the recorded value does not identify the exact peer-disconnect time or necessarily its cause, and detection may occur multiple write intervals later. Right-censored `server_shutdown` observations are excluded.",
           "gridPos": {
             "h": 9,
             "w": 24,
             "x": 0,
-            "y": 16
+            "y": 165
           },
           "datasource": {
             "type": "prometheus",
@@ -3879,16 +3913,186 @@
         }
       ],
       "id": 48
+    },
+    {
+      "collapsed": true,
+      "description": "Optional container resource evidence. Requires the `docker-compose.cost.yml` overlay and its cAdvisor metrics; normal EventHorizon deployment does not require cAdvisor.",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 182
+      },
+      "id": 53,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "description": "CPU time consumed by each tarpit container, derived from cumulative cAdvisor CPU seconds. The value is a percentage of one CPU core and is not normalized by machine cores or container limits.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "linear",
+                "lineWidth": 2,
+                "fillOpacity": 12,
+                "gradientMode": "none",
+                "spanNulls": false,
+                "showPoints": "never",
+                "pointSize": 5,
+                "stacking": {
+                  "mode": "none",
+                  "group": "A"
+                },
+                "axisPlacement": "auto",
+                "axisLabel": "",
+                "axisColorMode": "text",
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "unit": "percent"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 9,
+            "w": 12,
+            "x": 0,
+            "y": 183
+          },
+          "id": 54,
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "expr": "sum by (container_label_com_docker_compose_service) (rate(container_cpu_usage_seconds_total{job=\"cadvisor\",container_label_com_docker_compose_project=~\"eventhorizon(-field)?\",container_label_com_docker_compose_service=~\"telnet_pit|mqtt_pit|coap_pit|upnp_pit|endlessh\",cpu=\"total\"}[$__rate_interval])) * 100",
+              "legendFormat": "{{container_label_com_docker_compose_service}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Tarpit CPU usage (% of one core)",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "description": "Receive and transmit rates from each tarpit container interface as observed by cAdvisor. Values include protocol, transport, and network overhead.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "linear",
+                "lineWidth": 2,
+                "fillOpacity": 12,
+                "gradientMode": "none",
+                "spanNulls": false,
+                "showPoints": "never",
+                "pointSize": 5,
+                "stacking": {
+                  "mode": "none",
+                  "group": "A"
+                },
+                "axisPlacement": "auto",
+                "axisLabel": "",
+                "axisColorMode": "text",
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "unit": "Bps"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 9,
+            "w": 12,
+            "x": 12,
+            "y": 183
+          },
+          "id": 55,
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "expr": "sum by (container_label_com_docker_compose_service, interface) (rate(container_network_receive_bytes_total{job=\"cadvisor\",container_label_com_docker_compose_project=~\"eventhorizon(-field)?\",container_label_com_docker_compose_service=~\"telnet_pit|mqtt_pit|coap_pit|upnp_pit|endlessh\"}[$__rate_interval]))",
+              "legendFormat": "RX {{container_label_com_docker_compose_service}} / {{interface}}",
+              "refId": "A"
+            },
+            {
+              "expr": "sum by (container_label_com_docker_compose_service, interface) (rate(container_network_transmit_bytes_total{job=\"cadvisor\",container_label_com_docker_compose_project=~\"eventhorizon(-field)?\",container_label_com_docker_compose_service=~\"telnet_pit|mqtt_pit|coap_pit|upnp_pit|endlessh\"}[$__rate_interval]))",
+              "legendFormat": "TX {{container_label_com_docker_compose_service}} / {{interface}}",
+              "refId": "B"
+            }
+          ],
+          "title": "Tarpit container network RX/TX",
+          "type": "timeseries"
+        }
+      ],
+      "title": "Defender Cost",
+      "type": "row"
     }
   ],
   "preload": false,
-  "refresh": "15s",
+  "refresh": "30s",
   "schemaVersion": 41,
   "tags": [
-    "eventhorizon",
-    "gsoc-2026",
-    "metric-mvp",
-    "current"
+    "metrics",
+    "primary"
   ],
   "templating": {
     "list": []
@@ -3901,6 +4105,6 @@
   "timezone": "utc",
   "title": "EventHorizon Metrics",
   "uid": "eh-metric-mvp",
-  "version": 1,
+  "version": 6,
   "weekStart": ""
 }
