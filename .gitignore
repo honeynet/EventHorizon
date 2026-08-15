@@ -1,7 +1,5 @@
 bin/
 logs/
-analysis/
-docs/
 validation-output/
 deploy/vps-field.env
 otel-output/
@@ -15,7 +13,3 @@ masscan_*.xml
 scanner-output/
 __pycache__/
 *.py[cod]
-/.scratch/
-/AGENTS.md
-/CONTEXT.md
-/CLAUDE.md

@@ -1,116 +1,176 @@
-# Deploying EventHorizon on a server
+# Deployment
 
-EventHorizon deploys as a plain Docker Compose stack. There is no deployment
-tool to learn: you clone the repository on the host, adjust `.env`, and bring
-Compose up. Everything below is done over SSH on the target machine.
+EventHorizon deploys as a Docker Compose stack. Clone the repository on the target host, configure `.env`, select a Compose file set, inspect the rendered bindings, and start the services.
 
-## ⚠️ Exposure warning
+## Before you expose EventHorizon
 
-EventHorizon is a honeypot. Its tarpits are meant to accept connections from
-hostile automated scanners, and once running on a public IP the host **will**
-be scanned and attacked. Only deploy on a machine you are authorized to expose,
-that carries no other production workload, and that you can afford to rebuild.
+EventHorizon is a multiprotocol tarpit framework and a specialized low-interaction honeypot. A public deployment will receive hostile automated traffic.
 
-Publishing a tarpit is a separate decision from getting the stack running.
-Bring it up bound to localhost first, confirm it works, and only then open
-ports in your provider's firewall.
+Deploy only on an authorized host that carries no unrelated production workload or sensitive data and can be rebuilt if necessary.
+
+Keep the provider and host firewalls closed while starting and verifying the stack. Docker publishes configured tarpit ports on the host even while an external firewall denies inbound traffic. Open only the intended protocol ports after checking the rendered bindings and private health endpoints.
 
 ## Requirements
 
-- Linux host with Docker Engine and the Compose plugin, x86-64 or arm64
-- Ports listed in `.env` free on the host
-- x86-64 specifically if you use `docker-compose.field.yml`; that overlay pins
-  its images to `linux/amd64`
+- Linux host with Docker Engine and the Docker Compose plugin
+- x86-64 or arm64 architecture
+- Git and curl
+- Netcat if using `scripts/smoke.sh`
+- Configured tarpit ports available on the host
 
-## 1. Get the source
+## 1. Clone and configure
 
 ```bash
-git clone https://github.com/<your-fork>/EventHorizon.git
+git clone https://github.com/honeynet/EventHorizon.git
 cd EventHorizon
 ```
 
-## 2. Check the ports
+Contributors can substitute their fork URL when testing unmerged changes.
 
-`.env` puts the tarpits on the real service ports, because that is where
-scanners look for them:
+The `.env` file controls host port mappings and protocol limits.
 
-| Variable | Default | |
-| --- | --- | --- |
-| `TELNET_PORT` | 23 | |
-| `SSH_PORT` | 22 | **collides with the host's own `sshd`** |
-| `MQTT_PORT` | 1883 | |
-| `COAP_PORT` | 5683 | |
-| `UPNP_SSDP_PORT` / `UPNP_HTTP_PORT` | 1900 / 8080 | |
+| Variable | Default | Notes |
+| --- | ---: | --- |
+| `TELNET_PORT` | 23 | Telnet over TCP |
+| `SSH_PORT` | 22 | Conflicts with a host SSH server using port 22 |
+| `MQTT_PORT` | 1883 | MQTT over TCP |
+| `COAP_PORT` | 5683 | CoAP over UDP |
+| `UPNP_SSDP_PORT` | 1900 | SSDP over UDP |
+| `UPNP_HTTP_PORT` | 8080 | Device description over TCP |
 
-**The SSH tarpit defaults to port 22.** If your own `sshd` listens there, the
-`endlessh` container will fail to start, and moving `sshd` out of the way
-carelessly can lock you out of the machine. Do one of these before starting:
+If the host SSH server listens on port 22, starting Endlessh with the default mapping will fail. Either assign the tarpit another port in `.env`:
 
-```bash
-# Either: move the tarpit somewhere harmless
+```dotenv
 SSH_PORT=2222
-
-# Or: move your real sshd first, reconnect on the new port, and only then
-# leave SSH_PORT=22 for the tarpit
 ```
 
-Verify the ports are free before bringing the stack up:
+Or move the real SSH service first, verify a new management connection on its new port, and only then leave `SSH_PORT=22` for Endlessh. Moving the management service carelessly can lock you out.
+
+Check existing listeners before startup:
 
 ```bash
-ss -ltn | grep -E ':(22|23|1883|5683|1900|8080)\b'
+ss -ltn
+ss -lun
 ```
 
-## 3. Start the stack
+## 2. Select a deployment mode
+
+Export one of the following `COMPOSE_FILE` values in each new shell. All later Compose commands and `scripts/smoke.sh` will then use the same file set.
+
+Normal deployment:
+
+```bash
+export COMPOSE_FILE=docker-compose.yml
+```
+
+Long-running or public observation deployment:
+
+```bash
+export COMPOSE_FILE=docker-compose.yml:docker-compose.field.yml
+```
+
+The field overlay runs all five tarpits, restarts failed services, applies process health checks and resource limits, disables tarpit container logs, routes structured session logs to `/dev/null`, and keeps observability endpoints on loopback.
+
+Each tarpit defaults to half of one CPU core and 512 processes. Set `FIELD_TARPIT_MEMORY_LIMIT` to a supported Compose value such as `256m` when the host supports container memory limits. The default `0` leaves memory uncapped.
+
+Field deployment with optional defender-cost evidence:
+
+```bash
+export COMPOSE_FILE=docker-compose.yml:docker-compose.field.yml:docker-compose.cost.yml
+```
+
+The cost overlay adds privileged cAdvisor access and a Prometheus configuration that also scrapes container metrics. cAdvisor remains bound to `127.0.0.1:8081` and is unnecessary unless CPU and container network evidence is being collected.
+
+## 3. Inspect the rendered configuration
+
+```bash
+docker compose config
+docker compose config --services
+```
+
+Confirm that:
+
+- only the intended tarpit ports bind to `0.0.0.0`;
+- Grafana, Prometheus, and the exporter bind to `127.0.0.1`;
+- all five tarpit services are present; and
+- cAdvisor is absent unless the cost overlay was selected.
+
+## 4. Start and verify
 
 ```bash
 docker compose up -d --build
-```
-
-For a long-running deployment, add the field overlay. It restarts containers on
-failure, rotates container logs, caps tarpit CPU and memory, binds the tarpits
-on all interfaces, keeps Prometheus/Grafana on localhost, and runs only the
-Telnet and MQTT tarpits:
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.field.yml up -d --build
-```
-
-`docker-compose.cost.yml` is optional and adds cAdvisor for defender-cost
-measurements. It is separate from the core metric path.
-
-## 4. Check it works
-
-```bash
+docker compose ps
 ./scripts/smoke.sh
 ```
 
-This opens one Telnet connection and confirms the exporter counted it. To check
-by hand, see the commands in [`README.md`](README.md#checking-it-by-hand).
+The smoke test opens one Telnet connection, confirms that the exporter counted it, and checks Prometheus and Grafana health. It is a focused critical-path check, not an all-protocol runtime test.
 
-Grafana and Prometheus stay bound to `127.0.0.1`. Reach them through an SSH
-tunnel rather than opening them to the internet:
-
-```bash
-ssh -L 3000:127.0.0.1:3000 -L 9090:127.0.0.1:9090 user@your-host
-```
+Additional commands are documented in [README.md](README.md#manual-verification).
 
 ## 5. Open the firewall
 
-Only after the stack is verified, allow inbound traffic to the tarpit ports in
-your provider's firewall and the host firewall. Never open 3000, 9090, or 9101.
+Only after verification should the provider and host firewalls allow inbound traffic to the configured tarpit ports.
 
-## 6. Update
+For the default dedicated-VPS mapping:
+
+| Transport | Public ports |
+| --- | --- |
+| TCP | 22, 23, 1883, 8080 |
+| UDP | 1900, 5683 |
+
+Port 22 is appropriate for the SSH tarpit only when the real management SSH service has already moved elsewhere. Port mappings remain environment-specific.
+
+Never expose these observability endpoints publicly:
+
+| Service | Loopback port |
+| --- | ---: |
+| Grafana | 3000 |
+| Prometheus | 9090 |
+| Exporter | 9101 |
+| Optional cAdvisor | 8081 |
+
+Because Docker-published ports interact with host firewall rules, a host firewall rule alone isn't enough to control a published container port. See Docker's [packet filtering and firewall documentation](https://docs.docker.com/engine/network/packet-filtering-firewalls/) for details.
+
+## Operations
+
+Set the same `COMPOSE_FILE` value again whenever a new shell is opened.
+
+### Access Grafana and Prometheus
+
+Keep both services on loopback and tunnel through the real management SSH service. Replace port `2222` with its actual port:
 
 ```bash
-git pull
+ssh -p 2222 -N \
+  -L 3000:127.0.0.1:3000 \
+  -L 9090:127.0.0.1:9090 \
+  user@your-host
+```
+
+Then open `http://127.0.0.1:3000` or `http://127.0.0.1:9090` locally.
+
+### Update
+
+Record the current implementation commit before changing a measurement deployment. Then update and recreate the selected services:
+
+```bash
+git pull --ff-only
 docker compose up -d --build
 ```
 
-## 7. Stop and clean up
+### Stop
+
+Close the public firewall ports first if the host will remain online. Stop services while preserving Prometheus and Grafana data:
 
 ```bash
-docker compose down             # stop, keep metric history
-docker compose down --volumes   # stop and delete Prometheus/Grafana data
+docker compose down
 ```
 
-Close the firewall ports first if the host stays online.
+### Delete stored data
+
+The following command permanently deletes the named Prometheus and Grafana volumes in addition to stopping services:
+
+```bash
+docker compose down --volumes
+```
+
+Do not use `--volumes` when observation data must be retained.
