@@ -1,0 +1,55 @@
+name: CI
+
+"on":
+  push:
+    branches:
+      - GSoC_2026
+  pull_request: {}
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: build-and-test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Build binaries
+        run: make all
+      - name: Run C unit tests
+        run: make test
+      - name: Run Go exporter tests
+        run: make test-go
+      - name: Check dashboards against the metric surface
+        run: make check-dashboards
+
+  shell-quality:
+    name: shell-quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Check shell scripts
+        run: |
+          set -euo pipefail
+          bash -n scripts/*.sh
+          shellcheck --severity=error scripts/*.sh
+
+  smoke:
+    name: smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      SSH_PORT: 2222
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Start the stack and check one Telnet connection is counted
+        run: scripts/smoke.sh
+      - name: Show container logs on failure
+        if: failure()
+        run: docker compose logs --no-color
+      - name: Stop the stack
+        if: always()
+        run: docker compose down --volumes --remove-orphans

@@ -12,6 +12,10 @@
 #include <signal.h>
 #include <time.h>
 #include "../shared/structs.h"
+#include "../shared/metric_events.h"
+#ifdef EVENTHORIZON_JSON_METRIC_EVENTS
+#include <pthread.h>
+#endif
 
 #define CLASS_REQUEST 0x0
 #define DETAIL_GET 0x1
@@ -34,6 +38,670 @@ int ACK_TIMEOUT = 2000;
 int MAX_RETRANSMIT = 4;
 int maxNoClients = 4096;
 int sockFd;
+#ifndef EVENTHORIZON_JSON_METRIC_EVENTS
+static unsigned long coapEventCounter = 0;
+#endif
+
+#ifdef EVENTHORIZON_JSON_METRIC_EVENTS
+struct coapMetricExchange {
+    struct sockaddr_in endpoint;
+    socklen_t endpointLength;
+    uint8_t request[MAX_BUF_LEN];
+    size_t requestLength;
+    uint8_t token[8];
+    uint8_t tokenLength;
+    uint8_t requestType;
+    uint16_t requestMessageId;
+    uint64_t requestStartedMs;
+    uint64_t nextActionMs;
+    uint8_t response[32];
+    size_t responseLength;
+    uint16_t responseMessageId;
+    uint32_t retransmitAttempts;
+    bool requestActive;
+    bool conActive;
+    uint64_t conStartedMs;
+    struct coapMetricExchange *next;
+};
+
+enum coapMetricSendResult {
+    COAP_METRIC_SEND_COMPLETE,
+    COAP_METRIC_SEND_PENDING,
+    COAP_METRIC_SEND_FAILED,
+};
+
+enum coapProtocolDatagramBoundary {
+    COAP_PROTOCOL_DATAGRAM_EMPTY_ACK,
+    COAP_PROTOCOL_DATAGRAM_INITIAL_RESPONSE,
+    COAP_PROTOCOL_DATAGRAM_RETRANSMISSION,
+};
+
+static pthread_mutex_t coapMetricStateLock = PTHREAD_MUTEX_INITIALIZER;
+static struct coapMetricExchange *coapMetricExchanges = NULL;
+static uint32_t coapActiveRequestExchanges = 0;
+static uint32_t coapActiveCONResponseExchanges = 0;
+static uint32_t coapMetricExchangeCount = 0;
+static uint16_t coapNextResponseMessageId = 1;
+static bool coapMetricEmitterReady = false;
+#ifdef EVENTHORIZON_COAP_TEST_RUNTIME
+static bool coapTestSendInjectionConsumed = false;
+#endif
+
+static uint64_t coapMonotonicNowMs(void) {
+    long long now = currentMonotonicTimeMs();
+    return now > 0 ? (uint64_t)now : 0;
+}
+
+static uint64_t coapElapsedMs(uint64_t started, uint64_t ended) {
+    return ended >= started ? ended - started : 0;
+}
+
+static bool coapSameEndpoint(const struct sockaddr_in *left,
+                             const struct sockaddr_in *right) {
+    return left->sin_family == right->sin_family &&
+           left->sin_port == right->sin_port &&
+           left->sin_addr.s_addr == right->sin_addr.s_addr;
+}
+
+static bool coapSameToken(const struct coapMetricExchange *exchange,
+                          const uint8_t *token, uint8_t tokenLength) {
+    return exchange->tokenLength == tokenLength &&
+           memcmp(exchange->token, token, tokenLength) == 0;
+}
+
+static struct coapMetricExchange *coapFindRequestCollision(
+    const struct sockaddr_in *endpoint,
+    const uint8_t *request,
+    size_t requestLength,
+    const uint8_t *token,
+    uint8_t tokenLength,
+    uint16_t messageId) {
+    for (struct coapMetricExchange *exchange = coapMetricExchanges;
+         exchange;
+         exchange = exchange->next) {
+        if (!coapSameEndpoint(&exchange->endpoint, endpoint)) {
+            continue;
+        }
+        if ((exchange->requestMessageId == messageId) ||
+            coapSameToken(exchange, token, tokenLength) ||
+            (exchange->requestLength == requestLength &&
+             memcmp(exchange->request, request, requestLength) == 0)) {
+            return exchange;
+        }
+    }
+    return NULL;
+}
+
+static struct coapMetricExchange *coapFindCONExchange(
+    const struct sockaddr_in *endpoint, uint16_t messageId) {
+    for (struct coapMetricExchange *exchange = coapMetricExchanges;
+         exchange;
+         exchange = exchange->next) {
+        if (exchange->conActive &&
+            exchange->responseMessageId == messageId &&
+            coapSameEndpoint(&exchange->endpoint, endpoint)) {
+            return exchange;
+        }
+    }
+    return NULL;
+}
+
+static void coapAddMetricExchange(struct coapMetricExchange *exchange) {
+    exchange->next = coapMetricExchanges;
+    coapMetricExchanges = exchange;
+    coapMetricExchangeCount += 1;
+}
+
+static void coapDeleteMetricExchange(struct coapMetricExchange *exchange) {
+    struct coapMetricExchange **cursor = &coapMetricExchanges;
+    while (*cursor && *cursor != exchange) {
+        cursor = &(*cursor)->next;
+    }
+    if (*cursor == exchange) {
+        *cursor = exchange->next;
+        if (coapMetricExchangeCount > 0) {
+            coapMetricExchangeCount -= 1;
+        }
+        free(exchange);
+    }
+}
+
+static uint16_t coapAllocateResponseMessageId(void) {
+    uint16_t result = coapNextResponseMessageId;
+    coapNextResponseMessageId = (uint16_t)(coapNextResponseMessageId + 1);
+    return result;
+}
+
+static size_t coapEncodeBlockResponse(
+    uint8_t type,
+    uint16_t messageId,
+    const uint8_t *token,
+    uint8_t tokenLength,
+    uint32_t blockNumber,
+    uint8_t *response,
+    size_t capacity) {
+    uint32_t blockOptionValue = (blockNumber << 4) | (1U << 3) | 0x02U;
+    uint8_t blockLength = blockOptionValue <= 0xFFU ? 1 :
+                          blockOptionValue <= 0xFFFFU ? 2 : 3;
+    size_t responseLength = 4U + tokenLength + 2U + blockLength + 1U + 5U;
+    if (tokenLength > 8 || responseLength > capacity) {
+        return 0;
+    }
+
+    size_t index = 0;
+    response[index++] = (uint8_t)((1U << 6) | ((type & 0x03U) << 4) |
+                                  tokenLength);
+    response[index++] = 0x45;
+    response[index++] = (uint8_t)(messageId >> 8);
+    response[index++] = (uint8_t)(messageId & 0xFFU);
+    memcpy(&response[index], token, tokenLength);
+    index += tokenLength;
+
+    response[index++] = (uint8_t)((13U << 4) | blockLength);
+    response[index++] = 10;
+    if (blockLength == 1) {
+        response[index++] = (uint8_t)blockOptionValue;
+    } else if (blockLength == 2) {
+        response[index++] = (uint8_t)(blockOptionValue >> 8);
+        response[index++] = (uint8_t)blockOptionValue;
+    } else {
+        response[index++] = (uint8_t)(blockOptionValue >> 16);
+        response[index++] = (uint8_t)(blockOptionValue >> 8);
+        response[index++] = (uint8_t)blockOptionValue;
+    }
+    response[index++] = 0xFF;
+    memcpy(&response[index], "AAAAA", 5);
+    index += 5;
+    return index;
+}
+
+static enum coapMetricSendResult coapClassifySendResult(
+    ssize_t sent, size_t expectedLength, int sendError) {
+    if (sent == (ssize_t)expectedLength) {
+        return COAP_METRIC_SEND_COMPLETE;
+    }
+    if (sent < 0 && (sendError == EINTR || sendError == EAGAIN ||
+                     sendError == EWOULDBLOCK)) {
+        return COAP_METRIC_SEND_PENDING;
+    }
+    return COAP_METRIC_SEND_FAILED;
+}
+
+static ssize_t coapSendProtocolDatagram(
+    enum coapProtocolDatagramBoundary boundary,
+    const uint8_t *datagram,
+    size_t datagramLength,
+    const struct sockaddr_in *endpoint,
+    socklen_t endpointLength) {
+#ifdef EVENTHORIZON_COAP_TEST_RUNTIME
+    const char *injection = getenv("EVENTHORIZON_COAP_TEST_SEND_INJECTION");
+    bool injectShort = injection && !coapTestSendInjectionConsumed &&
+        ((boundary == COAP_PROTOCOL_DATAGRAM_INITIAL_RESPONSE &&
+          strcmp(injection, "initial_short") == 0) ||
+         (boundary == COAP_PROTOCOL_DATAGRAM_RETRANSMISSION &&
+          strcmp(injection, "retransmission_short") == 0));
+    if (injectShort) {
+        coapTestSendInjectionConsumed = true;
+        return datagramLength > 0 ? (ssize_t)(datagramLength - 1) : 0;
+    }
+#else
+    (void)boundary;
+#endif
+    return sendto(
+        sockFd, datagram, datagramLength, 0,
+        (const struct sockaddr *)endpoint, endpointLength);
+}
+
+static void coapEmitWriteFailure(ssize_t sent, int sendError) {
+    if (!coapMetricEmitterReady) {
+        return;
+    }
+    enum metric_io_reason reason = sent >= 0
+        ? METRIC_IO_OTHER
+        : metric_io_reason_from_unrecoverable_errno(sendError, false);
+    (void)metric_event_coap_write_error(reason);
+}
+
+static void coapAcceptRequestExchange(struct coapMetricExchange *exchange) {
+    pthread_mutex_lock(&coapMetricStateLock);
+    exchange->requestActive = true;
+    coapActiveRequestExchanges += 1;
+    if (coapMetricEmitterReady) {
+        (void)metric_event_coap_request_received(
+            coapActiveRequestExchanges);
+    }
+    pthread_mutex_unlock(&coapMetricStateLock);
+}
+
+static void coapFinalizeRequestWithoutCON(
+    struct coapMetricExchange *exchange,
+    enum metric_coap_request_outcome outcome,
+    uint64_t observedMs) {
+    pthread_mutex_lock(&coapMetricStateLock);
+    if (!exchange->requestActive) {
+        pthread_mutex_unlock(&coapMetricStateLock);
+        return;
+    }
+    exchange->requestActive = false;
+    if (coapActiveRequestExchanges > 0) {
+        coapActiveRequestExchanges -= 1;
+    }
+    if (coapMetricEmitterReady) {
+        (void)metric_event_coap_request_finalized(
+            outcome,
+            coapElapsedMs(exchange->requestStartedMs, observedMs),
+            coapActiveRequestExchanges);
+    }
+    pthread_mutex_unlock(&coapMetricStateLock);
+}
+
+static void coapStartCONResponseExchange(
+    struct coapMetricExchange *exchange, uint64_t observedMs) {
+    pthread_mutex_lock(&coapMetricStateLock);
+    if (!exchange->requestActive || exchange->conActive) {
+        pthread_mutex_unlock(&coapMetricStateLock);
+        return;
+    }
+    exchange->requestActive = false;
+    exchange->conActive = true;
+    exchange->conStartedMs = observedMs;
+    if (coapActiveRequestExchanges > 0) {
+        coapActiveRequestExchanges -= 1;
+    }
+    coapActiveCONResponseExchanges += 1;
+    if (coapMetricEmitterReady) {
+        (void)metric_event_coap_con_response_sent(
+            coapElapsedMs(exchange->requestStartedMs, observedMs),
+            coapActiveRequestExchanges,
+            coapActiveCONResponseExchanges);
+    }
+    pthread_mutex_unlock(&coapMetricStateLock);
+}
+
+static void coapFinalizeCONResponseExchange(
+    struct coapMetricExchange *exchange,
+    enum metric_coap_con_outcome outcome,
+    uint64_t observedMs) {
+    pthread_mutex_lock(&coapMetricStateLock);
+    if (!exchange->conActive) {
+        pthread_mutex_unlock(&coapMetricStateLock);
+        return;
+    }
+    exchange->conActive = false;
+    if (coapActiveCONResponseExchanges > 0) {
+        coapActiveCONResponseExchanges -= 1;
+    }
+    if (coapMetricEmitterReady) {
+        (void)metric_event_coap_con_response_finalized(
+            outcome,
+            coapElapsedMs(exchange->conStartedMs, observedMs),
+            coapActiveCONResponseExchanges);
+    }
+    pthread_mutex_unlock(&coapMetricStateLock);
+}
+
+static uint64_t coapInitialResponseDelayMs(void) {
+    return delay > 0 ? (uint64_t)delay : 0;
+}
+
+static uint64_t coapACKWaitMs(uint32_t retransmitAttempts) {
+    uint64_t base = ACK_TIMEOUT > 0 ? (uint64_t)ACK_TIMEOUT : 1;
+    uint32_t shift = retransmitAttempts < 31 ? retransmitAttempts : 31;
+    uint64_t interval = base << shift;
+    return interval > INT_MAX ? INT_MAX : interval;
+}
+
+static void coapProcessInitialResponse(
+    struct coapMetricExchange *exchange, uint64_t now) {
+    errno = 0;
+    ssize_t sent = coapSendProtocolDatagram(
+        COAP_PROTOCOL_DATAGRAM_INITIAL_RESPONSE,
+        exchange->response,
+        exchange->responseLength,
+        &exchange->endpoint,
+        exchange->endpointLength);
+    int sendError = errno;
+    enum coapMetricSendResult result = coapClassifySendResult(
+        sent, exchange->responseLength, sendError);
+
+    if (result == COAP_METRIC_SEND_PENDING) {
+        uint64_t retryDelay = coapInitialResponseDelayMs();
+        exchange->nextActionMs = now + (retryDelay > 0 ? retryDelay : 1);
+        return;
+    }
+    if (result == COAP_METRIC_SEND_FAILED) {
+        coapFinalizeRequestWithoutCON(
+            exchange, METRIC_COAP_REQUEST_TERMINATED, now);
+        coapEmitWriteFailure(sent, sendError);
+        coapDeleteMetricExchange(exchange);
+        return;
+    }
+
+    if (exchange->requestType == TYPE_NON_CONFIRMABLE) {
+        coapFinalizeRequestWithoutCON(
+            exchange, METRIC_COAP_REQUEST_RESPONSE_SENT, now);
+        coapDeleteMetricExchange(exchange);
+        return;
+    }
+
+    coapStartCONResponseExchange(exchange, now);
+    exchange->nextActionMs = now + coapACKWaitMs(0);
+}
+
+static void coapProcessCONResponse(
+    struct coapMetricExchange *exchange, uint64_t now) {
+    if (exchange->retransmitAttempts >= (uint32_t)MAX_RETRANSMIT) {
+        coapFinalizeCONResponseExchange(
+            exchange, METRIC_COAP_CON_RETRY_EXHAUSTED, now);
+        coapDeleteMetricExchange(exchange);
+        return;
+    }
+
+    errno = 0;
+    ssize_t sent = coapSendProtocolDatagram(
+        COAP_PROTOCOL_DATAGRAM_RETRANSMISSION,
+        exchange->response,
+        exchange->responseLength,
+        &exchange->endpoint,
+        exchange->endpointLength);
+    int sendError = errno;
+    enum coapMetricSendResult result = coapClassifySendResult(
+        sent, exchange->responseLength, sendError);
+    if (result == COAP_METRIC_SEND_PENDING) {
+        exchange->nextActionMs = now + 1;
+        return;
+    }
+
+    exchange->retransmitAttempts += 1;
+    if (result == COAP_METRIC_SEND_COMPLETE) {
+        if (coapMetricEmitterReady) {
+            (void)metric_event_coap_con_response_retransmitted();
+        }
+    } else {
+        coapEmitWriteFailure(sent, sendError);
+    }
+    exchange->nextActionMs = now +
+        coapACKWaitMs(exchange->retransmitAttempts);
+}
+
+static void coapProcessDueMetricExchanges(uint64_t now) {
+    bool processed;
+    do {
+        processed = false;
+        for (struct coapMetricExchange *exchange = coapMetricExchanges;
+             exchange;
+             exchange = exchange->next) {
+            if (exchange->nextActionMs > now) {
+                continue;
+            }
+            if (exchange->requestActive) {
+                coapProcessInitialResponse(exchange, now);
+            } else if (exchange->conActive) {
+                coapProcessCONResponse(exchange, now);
+            }
+            processed = true;
+            break;
+        }
+    } while (processed);
+}
+
+static int coapNextPollTimeout(uint64_t now) {
+    bool found = false;
+    uint64_t earliest = 0;
+    for (struct coapMetricExchange *exchange = coapMetricExchanges;
+         exchange;
+         exchange = exchange->next) {
+        if (!found || exchange->nextActionMs < earliest) {
+            found = true;
+            earliest = exchange->nextActionMs;
+        }
+    }
+    if (!found) {
+        return -1;
+    }
+    if (earliest <= now) {
+        return 0;
+    }
+    uint64_t remaining = earliest - now;
+    return remaining > INT_MAX ? INT_MAX : (int)remaining;
+}
+
+static bool coapIsSupportedRootGET(
+    const uint8_t *request,
+    size_t requestLength,
+    uint8_t tokenLength,
+    uint8_t type,
+    uint8_t code) {
+    return (type == TYPE_CONFIRMABLE || type == TYPE_NON_CONFIRMABLE) &&
+           code == DETAIL_GET &&
+           requestLength == (size_t)(4 + tokenLength) &&
+           request != NULL;
+}
+
+static void coapHandleControlMessage(
+    const uint8_t *message,
+    size_t messageLength,
+    const struct sockaddr_in *endpoint,
+    uint8_t type,
+    uint8_t code,
+    uint8_t tokenLength,
+    uint16_t messageId,
+    uint64_t now) {
+    if ((type != TYPE_ACK && type != TYPE_RST) || code != 0 ||
+        tokenLength != 0 || messageLength != 4) {
+        return;
+    }
+    (void)message;
+    struct coapMetricExchange *exchange =
+        coapFindCONExchange(endpoint, messageId);
+    if (!exchange) {
+        return;
+    }
+    coapFinalizeCONResponseExchange(
+        exchange,
+        type == TYPE_ACK ? METRIC_COAP_CON_ACK_RECEIVED
+                         : METRIC_COAP_CON_RST_RECEIVED,
+        now);
+    coapDeleteMetricExchange(exchange);
+}
+
+static void coapHandleSupportedGET(
+    const uint8_t *request,
+    size_t requestLength,
+    const struct sockaddr_in *endpoint,
+    socklen_t endpointLength,
+    uint8_t type,
+    uint8_t tokenLength,
+    uint16_t messageId,
+    uint64_t now) {
+    const uint8_t *token = &request[4];
+    if (coapFindRequestCollision(
+            endpoint, request, requestLength, token, tokenLength,
+            messageId)) {
+        return;
+    }
+    if (coapMetricExchangeCount >= (uint32_t)maxNoClients) {
+        return;
+    }
+
+    struct coapMetricExchange *exchange = calloc(1, sizeof(*exchange));
+    if (!exchange) {
+        return;
+    }
+    exchange->endpoint = *endpoint;
+    exchange->endpointLength = endpointLength;
+    memcpy(exchange->request, request, requestLength);
+    exchange->requestLength = requestLength;
+    memcpy(exchange->token, token, tokenLength);
+    exchange->tokenLength = tokenLength;
+    exchange->requestType = type;
+    exchange->requestMessageId = messageId;
+    exchange->requestStartedMs = now;
+    exchange->nextActionMs = now + coapInitialResponseDelayMs();
+    exchange->responseMessageId = coapAllocateResponseMessageId();
+    uint8_t responseType = type == TYPE_NON_CONFIRMABLE
+        ? TYPE_NON_CONFIRMABLE
+        : TYPE_CONFIRMABLE;
+    exchange->responseLength = coapEncodeBlockResponse(
+        responseType,
+        exchange->responseMessageId,
+        exchange->token,
+        exchange->tokenLength,
+        0,
+        exchange->response,
+        sizeof(exchange->response));
+    if (exchange->responseLength == 0) {
+        free(exchange);
+        return;
+    }
+
+    coapAddMetricExchange(exchange);
+    coapAcceptRequestExchange(exchange);
+
+    if (type == TYPE_CONFIRMABLE) {
+        uint8_t ack[4] = {
+            (uint8_t)((1U << 6) | (TYPE_ACK << 4)),
+            0,
+            (uint8_t)(messageId >> 8),
+            (uint8_t)messageId,
+        };
+        errno = 0;
+        ssize_t sent = coapSendProtocolDatagram(
+            COAP_PROTOCOL_DATAGRAM_EMPTY_ACK,
+            ack,
+            sizeof(ack),
+            endpoint,
+            endpointLength);
+        int sendError = errno;
+        enum coapMetricSendResult result = coapClassifySendResult(
+            sent, sizeof(ack), sendError);
+        if (result == COAP_METRIC_SEND_FAILED) {
+            coapEmitWriteFailure(sent, sendError);
+        }
+    }
+}
+
+static int runJSONCoAPServer(void) {
+    struct pollfd pollFd;
+    memset(&pollFd, 0, sizeof(pollFd));
+    pollFd.fd = sockFd;
+    pollFd.events = POLLIN;
+
+    while (1) {
+        uint64_t now = coapMonotonicNowMs();
+        coapProcessDueMetricExchanges(now);
+        int pollTimeout = coapNextPollTimeout(now);
+        int pollResult = poll(&pollFd, 1, pollTimeout);
+        if (pollResult < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            fprintf(stderr, "Poll error with error %s", strerror(errno));
+            continue;
+        }
+        if (pollResult == 0 || !(pollFd.revents & POLLIN)) {
+            continue;
+        }
+
+        struct sockaddr_in endpoint;
+        memset(&endpoint, 0, sizeof(endpoint));
+        socklen_t endpointLength = sizeof(endpoint);
+        uint8_t request[MAX_BUF_LEN];
+        ssize_t received = recvfrom(
+            sockFd, request, sizeof(request), 0,
+            (struct sockaddr *)&endpoint, &endpointLength);
+        now = coapMonotonicNowMs();
+        if (received < 4) {
+            continue;
+        }
+
+        uint8_t version = (request[0] >> 6) & 0x03U;
+        uint8_t type = (request[0] >> 4) & 0x03U;
+        uint8_t tokenLength = request[0] & 0x0FU;
+        uint8_t code = request[1];
+        uint16_t messageId =
+            (uint16_t)(((uint16_t)request[2] << 8) | request[3]);
+        if (version != 1 || tokenLength > 8 ||
+            received < (ssize_t)(4 + tokenLength)) {
+            continue;
+        }
+
+        if (type == TYPE_ACK || type == TYPE_RST) {
+            coapHandleControlMessage(
+                request, (size_t)received, &endpoint, type, code,
+                tokenLength, messageId, now);
+            continue;
+        }
+        if (!coapIsSupportedRootGET(
+                request, (size_t)received, tokenLength, type, code)) {
+            continue;
+        }
+        coapHandleSupportedGET(
+            request, (size_t)received, &endpoint, endpointLength, type,
+            tokenLength, messageId, now);
+    }
+    return 0;
+}
+#endif
+
+#ifndef EVENTHORIZON_JSON_METRIC_EVENTS
+static void makeCoapEventId(char *buffer, size_t len, long long eventMs) {
+    coapEventCounter += 1;
+    session_events_make_request_id(buffer, len, "coap", coapEventCounter, eventMs);
+}
+
+static const char *coapTypeName(uint8_t type) {
+    switch (type) {
+        case TYPE_CONFIRMABLE:
+            return "confirmable";
+        case TYPE_NON_CONFIRMABLE:
+            return "non_confirmable";
+        case TYPE_ACK:
+            return "ack";
+        case TYPE_RST:
+            return "reset";
+        default:
+            return "unknown";
+    }
+}
+
+static const char *coapMethodName(uint8_t class, uint8_t detail) {
+    if (class != CLASS_REQUEST) {
+        return "non_request";
+    }
+
+    switch (detail) {
+        case DETAIL_GET:
+            return "GET";
+        case DETAIL_POST:
+            return "POST";
+        case DETAIL_PUT:
+            return "PUT";
+        case DETAIL_DELETE:
+            return "DELETE";
+        default:
+            return "unknown";
+    }
+}
+
+static void emitCoapAction(const char *eventId, const char *action, const char *fields) {
+    session_events_write_action("coap", eventId, action, fields);
+}
+
+static void emitCoapSendEvent(const char *eventId, const char *responseKind,
+                              int bytesSent, long long handlingDurationMs,
+                              unsigned int interactionDepth) {
+    char fields[256];
+    snprintf(fields, sizeof(fields),
+        "\"transport\":\"udp\",\"response_kind\":\"%s\",\"bytes_sent\":%d,\"write_result\":\"%s\",\"handling_duration_ms\":%lld,\"interaction_depth\":%u",
+        responseKind,
+        bytesSent > 0 ? bytesSent : 0,
+        bytesSent >= 0 ? "success" : "write_error",
+        handlingDurationMs < 0 ? 0 : handlingDurationMs,
+        interactionDepth);
+    emitCoapAction(eventId, "response_sent", fields);
+}
+#endif
 
 void addClient(struct coapClient *client) {
     HASH_ADD(hh, clients, clientAddr, sizeof(struct sockaddr_in), client);
@@ -140,7 +808,13 @@ int main(int argc, char* argv[]) {
     MAX_RETRANSMIT = atoi(argv[4]);
     maxNoClients = atoi(argv[5]);
     struct sockaddr_in serverAddr;
+#ifdef EVENTHORIZON_JSON_METRIC_EVENTS
+    coapMetricEmitterReady = metric_event_emitter_init(
+        getenv("EVENTHORIZON_METRIC_SOCKET"));
+#else
     heap_init(&clientQueueCoap, maxNoClients);
+#endif
+    session_events_init(NULL);
 
     if ((sockFd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
         fprintf(stderr, "SSDP Socket creation failed");
@@ -167,6 +841,9 @@ int main(int argc, char* argv[]) {
 
     printf("CoAP listener started on port %d\n", port);
 
+#ifdef EVENTHORIZON_JSON_METRIC_EVENTS
+    return runJSONCoAPServer();
+#else
     struct pollfd pollFd;
     memset(&pollFd, 0, sizeof(pollFd));
     pollFd.fd = sockFd;
@@ -188,9 +865,13 @@ int main(int argc, char* argv[]) {
                         c->retransmits += 1;
 
                         if(!c->receivedAck) {
-                            sendCoapBlockResponse(c->messageId, c->token, c->tkl, &c->blockNumber, &c->clientAddr, c->addrLen);
+                            int out = sendCoapBlockResponse(c->messageId, c->token, c->tkl, &c->blockNumber, &c->clientAddr, c->addrLen);
+                            c->interactionDepth += 1;
+                            emitCoapSendEvent(c->sessionId, "block2_retransmit", out, 0, c->interactionDepth);
                         } else {
-                            sendPing(c->messageId, &c->clientAddr, c->addrLen);
+                            int out = sendPing(c->messageId, &c->clientAddr, c->addrLen);
+                            c->interactionDepth += 1;
+                            emitCoapSendEvent(c->sessionId, "ping_retransmit", out, 0, c->interactionDepth);
                         }
 
                         // printf("Token contents: ");
@@ -215,11 +896,15 @@ int main(int argc, char* argv[]) {
                 } 
                 
                 if (c->receivedGet) {
-                    sendCoapBlockResponse(c->messageId, c->token, c->tkl, &c->blockNumber, &c->clientAddr, c->addrLen);
+                    int out = sendCoapBlockResponse(c->messageId, c->token, c->tkl, &c->blockNumber, &c->clientAddr, c->addrLen);
+                    c->interactionDepth += 1;
+                    emitCoapSendEvent(c->sessionId, "block2", out, 0, c->interactionDepth);
                     c->blockNumber += 1;
                     c->receivedAck = false;
                 } else if (c->receivedRst) {
-                    sendPing(c->messageId, &c->clientAddr, c->addrLen);
+                    int out = sendPing(c->messageId, &c->clientAddr, c->addrLen);
+                    c->interactionDepth += 1;
+                    emitCoapSendEvent(c->sessionId, "ping", out, 0, c->interactionDepth);
                     c->receivedRst = false;
                 } 
                 
@@ -246,8 +931,18 @@ int main(int argc, char* argv[]) {
             char buffer[1024];
 
             int len = recvfrom(sockFd, buffer, MAX_BUF_LEN, 0, (struct sockaddr *)&clientAddr, &addrLen);
+            long long requestStartMs = currentTimeMs();
             if(len < 4) {
                 // Too short or something went wrong
+                if (len > 0) {
+                    char eventId[SESSION_EVENT_ID_LEN];
+                    char fields[256];
+                    makeCoapEventId(eventId, sizeof(eventId), requestStartMs);
+                    snprintf(fields, sizeof(fields),
+                        "\"transport\":\"udp\",\"bytes_received\":%d,\"malformed_reason\":\"too_short\",\"handling_duration_ms\":0",
+                        len);
+                    emitCoapAction(eventId, "malformed_request", fields);
+                }
                 continue;
             }
 
@@ -282,6 +977,14 @@ int main(int argc, char* argv[]) {
 
             if (tkl > 8 || len < 4 + tkl) {
                 // Malformed request. Send 4.00 Bad Request
+                char eventId[SESSION_EVENT_ID_LEN];
+                char fields[256];
+                makeCoapEventId(eventId, sizeof(eventId), requestStartMs);
+                snprintf(fields, sizeof(fields),
+                    "\"transport\":\"udp\",\"bytes_received\":%d,\"coap_type\":\"%s\",\"coap_method\":\"%s\",\"message_id\":%u,\"token_length\":%u,\"malformed_reason\":\"invalid_token_length\",\"handling_duration_ms\":0",
+                    len, coapTypeName(type), coapMethodName(class, detail), msgId, tkl);
+                emitCoapAction(eventId, "malformed_request", fields);
+
                 uint8_t response[4];
                 uint8_t resp_type = (type == TYPE_CONFIRMABLE) ? TYPE_ACK : TYPE_NON_CONFIRMABLE;
             
@@ -291,11 +994,19 @@ int main(int argc, char* argv[]) {
                 response[3] = msgId & 0b11111111;
                 int resp_len = 4;
 
-                sendto(sockFd, response, resp_len, 0, (struct sockaddr *)&clientAddr, addrLen);
+                int out = sendto(sockFd, response, resp_len, 0, (struct sockaddr *)&clientAddr, addrLen);
+                emitCoapSendEvent(eventId, "bad_request", out, currentTimeMs() - requestStartMs, 0);
                 continue;
             } 
             else if (version != 1){
                 // Must be silently ignored
+                char eventId[SESSION_EVENT_ID_LEN];
+                char fields[256];
+                makeCoapEventId(eventId, sizeof(eventId), requestStartMs);
+                snprintf(fields, sizeof(fields),
+                    "\"transport\":\"udp\",\"bytes_received\":%d,\"coap_version\":%u,\"malformed_reason\":\"unsupported_version\",\"handling_duration_ms\":0",
+                    len, version);
+                emitCoapAction(eventId, "malformed_request", fields);
                 continue;
             } else if (tkl > 0) {
                 memcpy(token, &buffer[4], tkl);
@@ -317,12 +1028,15 @@ int main(int argc, char* argv[]) {
                 client->base.timeConnected = 0;
                 client->blockNumber = 0;
                 client->tkl = tkl;
+                client->interactionDepth = 0;
                 client->retransmits = 0;
                 client->messageId = 1;
                 client->receivedAck = true;
                 client->receivedRst = true;
+                client->receivedGet = false;
                 memcpy(client->token, token, 8);
                 snprintf(client->base.ipaddr, INET_ADDRSTRLEN, "%s", inet_ntoa(clientAddr.sin_addr));
+                makeCoapEventId(client->sessionId, sizeof(client->sessionId), requestStartMs);
                 heap_insert(&clientQueueCoap, (struct baseClient*)client);
                 addClient(client);
 
@@ -332,6 +1046,22 @@ int main(int argc, char* argv[]) {
                 printf("%s", msg);
                 sendMetric(msg);
             }
+
+            client->interactionDepth += 1;
+            char metricMsg[64];
+            snprintf(metricMsg, sizeof(metricMsg), "%s protocol_action coap_request\n", SERVER_ID);
+            sendMetric(metricMsg);
+            char fields[256];
+            snprintf(fields, sizeof(fields),
+                "\"transport\":\"udp\",\"bytes_received\":%d,\"coap_type\":\"%s\",\"coap_method\":\"%s\",\"message_id\":%u,\"token_present\":%s,\"token_length\":%u,\"handling_duration_ms\":0,\"interaction_depth\":%u",
+                len,
+                coapTypeName(type),
+                coapMethodName(class, detail),
+                msgId,
+                tkl > 0 ? "true" : "false",
+                tkl,
+                client->interactionDepth);
+            emitCoapAction(client->sessionId, "request_received", fields);
             
             if (type == TYPE_RST) {
                 client->receivedRst = true;
@@ -356,10 +1086,13 @@ int main(int argc, char* argv[]) {
 
                 int out = sendto(sockFd, ack, sizeof(ack), 0, (struct sockaddr *)&clientAddr, addrLen);
                 printf("ACK sendto: %d with messageId=%u\n", out, msgId);
+                client->interactionDepth += 1;
+                emitCoapSendEvent(client->sessionId, "ack", out, currentTimeMs() - requestStartMs, client->interactionDepth);
             }
         }
     }
 
     close(sockFd);
     return 0;
+#endif
 }

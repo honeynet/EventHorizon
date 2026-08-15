@@ -9,6 +9,7 @@
 #include <sys/resource.h>
 #include <sys/un.h>
 #include <stdio.h>
+#include <string.h>
 #include "structs.h"
 
 struct queue clientQueueTelnet;
@@ -165,6 +166,14 @@ long long currentTimeMs() {
     return (long long)ts.tv_sec * 1000LL + ts.tv_nsec / 1000000LL;
 }
 
+long long currentMonotonicTimeMs(void) {
+    struct timespec ts;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
+        return 0;
+    }
+    return (long long)ts.tv_sec * 1000LL + ts.tv_nsec / 1000000LL;
+}
+
 void setFdLimit(int limit) {
     struct rlimit rl;
     rl.rlim_cur = limit;
@@ -188,4 +197,62 @@ void sendMetric(const char* message) {
         perror("sendto failed");
     }
     close(sock);
+}
+
+const char *metricReasonFromErrno(int errorNumber) {
+    switch (errorNumber) {
+        case ETIMEDOUT:
+            return "timeout";
+        case ECONNRESET:
+            return "reset";
+        case EPIPE:
+        case ENOTCONN:
+        case ECONNABORTED:
+        case EBADF:
+            return "closed";
+        default:
+            return "unknown";
+    }
+}
+
+void sendReliabilityMetric(const char *server, const char *event, const char *reason) {
+    if (!server || !event) {
+        return;
+    }
+
+    char msg[128];
+    snprintf(msg, sizeof(msg), "%s %s %s\n",
+        server,
+        event,
+        reason && reason[0] ? reason : "unknown");
+    sendMetric(msg);
+}
+
+bool formatByteMetric(char *message, size_t messageSize, const char *server,
+                      const char *direction, ssize_t ioResult) {
+    if (!message || messageSize == 0 || !server || !direction || ioResult <= 0) {
+        return false;
+    }
+    if (strcmp(server, "Telnet") != 0 && strcmp(server, "MQTT") != 0) {
+        return false;
+    }
+    const char *command = NULL;
+    if (strcmp(direction, "sent") == 0) {
+        command = "bytes_sent";
+    } else if (strcmp(direction, "received") == 0) {
+        command = "bytes_received";
+    } else {
+        return false;
+    }
+
+    int written = snprintf(message, messageSize, "%s %s %zd\n", server, command, ioResult);
+    return written > 0 && (size_t)written < messageSize;
+}
+
+void sendByteMetric(const char *server, const char *direction, ssize_t ioResult) {
+    char msg[128];
+    if (!formatByteMetric(msg, sizeof(msg), server, direction, ioResult)) {
+        return;
+    }
+    sendMetric(msg);
 }

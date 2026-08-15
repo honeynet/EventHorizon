@@ -1,4 +1,4 @@
-FROM gcc:12 AS c-builder
+FROM gcc:12.5.0-bookworm AS c-builder
 
 WORKDIR /src
 COPY servers/ ./servers/

@@ -20,6 +20,9 @@ services:
       - ${TELNET_PORT}:${TELNET_PORT}
     volumes:
       - tarpit-sock:/tmp  # Share socket with prometheus-exporter
+      - ./logs:/var/log/eventhorizon
+    environment:
+      - EVENTHORIZON_SESSION_LOG=/var/log/eventhorizon/eventhorizon.jsonl
     ulimits:
       nofile:
         soft: "${TELNET_MAX_NO_CLIENTS}"
@@ -37,6 +40,9 @@ services:
       - ${UPNP_HTTP_PORT}:${UPNP_HTTP_PORT}
     volumes:
       - tarpit-sock:/tmp  # Share socket with prometheus-exporter
+      - ./logs:/var/log/eventhorizon
+    environment:
+      - EVENTHORIZON_SESSION_LOG=/var/log/eventhorizon/eventhorizon.jsonl
     ulimits:
       nofile:
         soft: "${UPNP_MAX_NO_CLIENTS}"
@@ -53,6 +59,9 @@ services:
       - ${MQTT_PORT}:${MQTT_PORT}
     volumes:
       - tarpit-sock:/tmp  # Share socket with prometheus-exporter
+      - ./logs:/var/log/eventhorizon
+    environment:
+      - EVENTHORIZON_SESSION_LOG=/var/log/eventhorizon/eventhorizon.jsonl
     ulimits:
       nofile:
         soft: "${MQTT_MAX_NO_CLIENTS}"
@@ -69,6 +78,9 @@ services:
       - ${COAP_PORT}:${COAP_PORT}/udp
     volumes:
       - tarpit-sock:/tmp  # Share socket with prometheus-exporter
+      - ./logs:/var/log/eventhorizon
+    environment:
+      - EVENTHORIZON_SESSION_LOG=/var/log/eventhorizon/eventhorizon.jsonl
     command: ["start", "coap", "${COAP_PORT}", "${COAP_DELAY_MS}", "${COAP_ACK_TIMEOUT_MS}", "${COAP_MAX_RETRANSMIT}", "${COAP_MAX_NO_CLIENTS}"]
     depends_on:
       - prometheus-exporter
@@ -86,19 +98,22 @@ services:
       - prometheus-exporter
 
   prometheus:
-    image: prom/prometheus
+    image: prom/prometheus:v3.13.2
     container_name: prometheus
     ports:
       - "127.0.0.1:9090:9090"
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
     depends_on:
       - prometheus-exporter
 
   grafana:
-    image: grafana/grafana-oss:latest
+    image: grafana/grafana-oss:13.0.2
     container_name: grafana
     ports:
       - "127.0.0.1:3000:3000"
@@ -113,5 +128,6 @@ services:
     - GF_LOG_LEVEL=warn
 
 volumes:
+  prometheus-data:
   grafana-storage:
   tarpit-sock:

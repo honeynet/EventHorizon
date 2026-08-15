@@ -1,7 +1,14 @@
 #!/bin/bash
 # set -x  # Debug
 
-BIN_DIR="/usr/local/bin"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -z "${BIN_DIR:-}" ]; then
+    if [ -d "$SCRIPT_DIR/bin" ]; then
+        BIN_DIR="$SCRIPT_DIR/bin"
+    else
+        BIN_DIR="$SCRIPT_DIR"
+    fi
+fi
 PID_DIR="/tmp/tarpits"
 
 mkdir -p "$PID_DIR"

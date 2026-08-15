@@ -1,11 +1,11 @@
 .POSIX:
 CC       = cc
-CFLAGS   = -std=c99 -Wall -Wextra -Wno-missing-field-initializers -Os
+CFLAGS   = -std=c99 -Wall -Wextra -Wno-missing-field-initializers -Os -pthread
 CPPFLAGS =
 LDFLAGS  = -ggdb3
 LDLIBS   =
 PREFIX   = /usr/local
-SHARED   = /structs.c
+SHARED   = /metric_events.c
 
 all: endlessh
 

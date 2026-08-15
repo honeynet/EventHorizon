@@ -1,0 +1,24 @@
+services:
+  cadvisor:
+    image: ghcr.io/google/cadvisor:v0.57.0
+    container_name: cadvisor
+    privileged: true
+    command:
+      - --docker_only=true
+      - --enable_metrics=cpu,memory,network
+      - --store_container_labels=false
+      - --whitelisted_container_labels=com.docker.compose.project,com.docker.compose.service
+    ports:
+      - "127.0.0.1:8081:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+
+  prometheus:
+    volumes:
+      - ./prometheus/prometheus.cost.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      cadvisor:
+        condition: service_started

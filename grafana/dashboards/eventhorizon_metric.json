@@ -1,0 +1,4110 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Primary EventHorizon protocol measurement view. Panels distinguish current state, finalized work, timing, duration, and reliability using the observation units defined in METRICS.md.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Current activity by observation unit",
+      "description": "Producer-owned active gauges: `current_connected_clients`, `eventhorizon_coap_active_request_exchanges`, `eventhorizon_coap_active_con_response_exchanges`, and `eventhorizon_upnp_active_description_responses`. These current values use different observation units and are not summed. SSH is absent because Endlessh cannot observe peer closure and does not publish an active-client gauge.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "mappings": [],
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Telnet sessions"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#1F3B5B"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "MQTT Network Connections"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#352D62"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "CoAP request exchanges"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#173F43"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "CoAP CON reliability exchanges"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#173F43"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "UPnP description responses"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#572544"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "expr": "sum(current_connected_clients{server=\"Telnet\"})",
+          "instant": true,
+          "range": false,
+          "refId": "A",
+          "legendFormat": "Telnet sessions"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "expr": "sum(current_connected_clients{server=\"MQTT\"})",
+          "instant": true,
+          "range": false,
+          "refId": "B",
+          "legendFormat": "MQTT Network Connections"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "expr": "eventhorizon_coap_active_request_exchanges",
+          "instant": true,
+          "range": false,
+          "refId": "C",
+          "legendFormat": "CoAP request exchanges"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "expr": "eventhorizon_coap_active_con_response_exchanges",
+          "instant": true,
+          "range": false,
+          "refId": "D",
+          "legendFormat": "CoAP CON reliability exchanges"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "expr": "eventhorizon_upnp_active_description_responses",
+          "instant": true,
+          "range": false,
+          "refId": "E",
+          "legendFormat": "UPnP description responses"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "percentChangeColorMode": "standard",
+        "showPercentChange": false
+      }
+    },
+    {
+      "id": 3,
+      "type": "row",
+      "title": "Telnet: tracked sessions",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
+      "panels": []
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Telnet lifecycle accounting",
+      "description": "Tracked Telnet session lifecycle: `current_connected_clients{server=\"Telnet\"}`, `eventhorizon_completed_sessions_total`, `eventhorizon_session_duration_ms_count`. **A session open at both edges of the selected range is counted in \"Active now\" and in neither of the other two**: its duration is not counted until it finishes. \"Finalized\" and \"Duration observations\" are expected to be equal; that is a reconciliation identity, not a coincidence. Counts accepted TCP connections, not unique people or devices.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "mappings": [],
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#5794F2"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#5794F2",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "expr": "sum(current_connected_clients{server=\"Telnet\"})",
+          "instant": true,
+          "range": false,
+          "refId": "F",
+          "legendFormat": "Active now"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "expr": "sum(increase(eventhorizon_completed_sessions_total{protocol=\"telnet\"}[$__range]))",
+          "instant": true,
+          "range": false,
+          "refId": "G",
+          "legendFormat": "Finalized in range"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "expr": "increase(eventhorizon_session_duration_ms_count{protocol=\"telnet\"}[$__range])",
+          "instant": true,
+          "range": false,
+          "refId": "H",
+          "legendFormat": "Duration observations in range"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value_and_name",
+        "wideLayout": false,
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "percentChangeColorMode": "standard",
+        "showPercentChange": false
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Telnet accepted vs. finalized",
+      "description": "Accepted tracked Telnet sessions and Telnet session finalizations: `total_connects{server=\"Telnet\"}` and `eventhorizon_completed_sessions_total`. Accepted running above finished means sessions are being held open: that is the tarpit working, not a measurement error.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 11
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "pointSize": 5,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "axisColorMode": "text",
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "expr": "increase(total_connects{server=\"Telnet\"}[$__rate_interval])",
+          "instant": false,
+          "range": true,
+          "refId": "I",
+          "legendFormat": "Accepted"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "expr": "sum(increase(eventhorizon_completed_sessions_total{protocol=\"telnet\"}[$__rate_interval]))",
+          "instant": false,
+          "range": true,
+          "refId": "J",
+          "legendFormat": "Finished"
+        }
+      ],
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Telnet accepted but not finalized",
+      "description": "Accepted minus finalized over the selected time range: `total_connects{server=\"Telnet\"}` minus `eventhorizon_completed_sessions_total`. **A non-zero gap can be normal when connections or exchanges are still active. This panel is an operational hint, not deterministic validation proof.** Deterministic reconciliation requires settled boundary scrapes over a complete process epoch; see `METRICS.md`.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 11
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "pointSize": 5,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "axisColorMode": "text",
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "expr": "sum(increase(total_connects{server=\"Telnet\"}[$__range]))\n  - sum(increase(eventhorizon_completed_sessions_total{protocol=\"telnet\"}[$__range]))",
+          "instant": false,
+          "range": true,
+          "refId": "K",
+          "legendFormat": "Accepted but not yet finished"
+        }
+      ],
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "bargauge",
+      "title": "Telnet finalizations by reason",
+      "description": "Telnet session finalization reason: `eventhorizon_completed_sessions_total{disconnect_reason}`, five bounded values. \"Finalized\" does not mean a login, command, or Telnet negotiation completed successfully, and ordinary inactivity is not itself a finalization reason. **This panel counts finalized sessions only.** This counter uses bounded labels only: no errno, no error text, no identities.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 19
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "mappings": [],
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "expr": "sum by (disconnect_reason) (increase(eventhorizon_completed_sessions_total{protocol=\"telnet\"}[$__range]))",
+          "instant": true,
+          "range": false,
+          "refId": "L",
+          "legendFormat": "{{disconnect_reason}}"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "valueMode": "color",
+        "showUnfilled": true,
+        "sizing": "auto",
+        "minVizWidth": 8,
+        "minVizHeight": 16,
+        "maxVizHeight": 300,
+        "namePlacement": "auto",
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "bargauge",
+      "title": "Telnet interaction depth at finalization",
+      "description": "Telnet interaction depth: `eventhorizon_session_interaction_depth_total{depth_level}`. A bounded final classification of the furthest meaningful application interaction reached: `0` none, `1` incomplete input, `2` exactly one complete non-empty line, `3` meaningful continuation after that line. It is not a command count, a line count, or attacker sophistication. **This panel counts finalized sessions only.**",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 19
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "mappings": [],
+          "color": {
+            "mode": "palette-classic"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "expr": "sum by (depth_level) (increase(eventhorizon_session_interaction_depth_total{protocol=\"telnet\"}[$__range]))",
+          "instant": true,
+          "range": false,
+          "refId": "M",
+          "legendFormat": "depth {{depth_level}}"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "valueMode": "color",
+        "showUnfilled": true,
+        "sizing": "auto",
+        "minVizWidth": 8,
+        "minVizHeight": 16,
+        "maxVizHeight": 300,
+        "namePlacement": "auto",
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": "heatmap",
+      "title": "Telnet session duration distribution",
+      "description": "Telnet session duration: `eventhorizon_session_duration_ms`. Monotonic elapsed time from acceptance to the one finalization boundary, observed by the server. It includes time before the first server write. **This panel counts finalized observations only; open sessions are absent.** Not a configured delay, not an active-session age, not a client-perceived latency.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 27
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "expr": "sum by (le) (increase(eventhorizon_session_duration_ms_bucket{protocol=\"telnet\"}[$__rate_interval]))",
+          "instant": false,
+          "range": true,
+          "refId": "N",
+          "legendFormat": "{{le}}",
+          "format": "heatmap"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "calculate": false,
+        "cellGap": 1,
+        "cellValues": {
+          "unit": "short"
+        },
+        "color": {
+          "mode": "scheme",
+          "scheme": "Oranges",
+          "steps": 64,
+          "reverse": false,
+          "exponent": 0.5,
+          "fill": "dark-orange",
+          "min": 0
+        },
+        "exemplars": {
+          "color": "rgba(255,0,255,0.7)"
+        },
+        "filterValues": {
+          "le": 1e-09
+        },
+        "legend": {
+          "show": true
+        },
+        "rowsFrame": {
+          "layout": "auto",
+          "value": "Finalized observations"
+        },
+        "showValue": "never",
+        "tooltip": {
+          "mode": "single",
+          "showColorScale": false,
+          "yHistogram": true
+        },
+        "yAxis": {
+          "axisPlacement": "left",
+          "reverse": false,
+          "unit": "ms"
+        }
+      }
+    },
+    {
+      "id": 10,
+      "type": "stat",
+      "title": "Telnet session duration (mean / p50 / p95)",
+      "description": "Telnet session duration: `eventhorizon_session_duration_ms`. Computed over the selected time range from finalized observations only. Blank means nothing finished in range: it does not mean nothing is happening; check \"Active now\".",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 27
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "mappings": [],
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "expr": "increase(eventhorizon_session_duration_ms_sum{protocol=\"telnet\"}[$__range])\n  / increase(eventhorizon_session_duration_ms_count{protocol=\"telnet\"}[$__range])",
+          "instant": true,
+          "range": false,
+          "refId": "O",
+          "legendFormat": "Mean"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.50, sum by (le) (increase(eventhorizon_session_duration_ms_bucket{protocol=\"telnet\"}[$__range])))",
+          "instant": true,
+          "range": false,
+          "refId": "P",
+          "legendFormat": "p50"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum by (le) (increase(eventhorizon_session_duration_ms_bucket{protocol=\"telnet\"}[$__range])))",
+          "instant": true,
+          "range": false,
+          "refId": "Q",
+          "legendFormat": "p95"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "percentChangeColorMode": "standard",
+        "showPercentChange": false
+      }
+    },
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "Telnet time to first server write (p50 / p95)",
+      "description": "First-write delay: `eventhorizon_telnet_first_write_delay_ms`. Monotonic elapsed time from an accepted connection to its first successful positive-byte server write. **This is measured server-side timing, not the configured delay.** It is not first-response latency and not time to client receipt. Computed over the selected time range from finalized observations only. Blank means nothing finished in range: it does not mean nothing is happening; check \"Active now\".",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 12,
+        "x": 0,
+        "y": 36
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "mappings": [],
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#5794F2"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#5794F2",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.50, sum by (le) (increase(eventhorizon_telnet_first_write_delay_ms_bucket[$__range])))",
+          "instant": true,
+          "range": false,
+          "refId": "R",
+          "legendFormat": "p50"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum by (le) (increase(eventhorizon_telnet_first_write_delay_ms_bucket[$__range])))",
+          "instant": true,
+          "range": false,
+          "refId": "S",
+          "legendFormat": "p95"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "percentChangeColorMode": "standard",
+        "showPercentChange": false
+      }
+    },
+    {
+      "id": 12,
+      "type": "stat",
+      "title": "Telnet time between server writes (p50 / p95)",
+      "description": "Inter-write interval: `eventhorizon_telnet_inter_write_interval_ms`. Monotonic elapsed time between consecutive successful positive-byte server writes. **Measured, not configured**; not a response latency and not a round-trip time. Computed over the selected time range from finalized observations only. Blank means nothing finished in range: it does not mean nothing is happening; check \"Active now\".",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 12,
+        "x": 12,
+        "y": 36
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "mappings": [],
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.50, sum by (le) (increase(eventhorizon_telnet_inter_write_interval_ms_bucket[$__range])))",
+          "instant": true,
+          "range": false,
+          "refId": "T",
+          "legendFormat": "p50"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum by (le) (increase(eventhorizon_telnet_inter_write_interval_ms_bucket[$__range])))",
+          "instant": true,
+          "range": false,
+          "refId": "U",
+          "legendFormat": "p95"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "percentChangeColorMode": "standard",
+        "showPercentChange": false
+      }
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Telnet read and write errors by reason",
+      "description": "`eventhorizon_read_errors_total` and `eventhorizon_write_errors_total`, four bounded reasons: `timeout`, `reset`, `closed`, `other`. A clean TCP EOF is a peer finalization, not an error, and a positive partial write is byte evidence rather than an error. Zero errors does not prove telemetry completeness. This counter uses bounded labels only: no errno, no error text, no identities.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 41
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "pointSize": 5,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "axisColorMode": "text",
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "expr": "sum by (reason) (increase(eventhorizon_read_errors_total{protocol=\"telnet\"}[$__rate_interval]))",
+          "instant": false,
+          "range": true,
+          "refId": "V",
+          "legendFormat": "read {{reason}}"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "expr": "sum by (reason) (increase(eventhorizon_write_errors_total{protocol=\"telnet\"}[$__rate_interval]))",
+          "instant": false,
+          "range": true,
+          "refId": "W",
+          "legendFormat": "write {{reason}}"
+        }
+      ],
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
+        }
+      }
+    },
+    {
+      "id": 14,
+      "type": "timeseries",
+      "title": "Telnet application bytes",
+      "description": "Positive socket-return bytes only: `eventhorizon_bytes_received_total`, `eventhorizon_bytes_sent_total`. Includes protocol framing, incomplete input, and partial writes; excludes EOF, failed, retryable, and zero-byte I/O. **This is not TCP/IP wire volume and does not prove client receipt.** Container network bytes are the authoritative volume evidence and live in the optional Defender Cost row.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 41
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "decimals": 1,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 12,
+            "gradientMode": "none",
+            "spanNulls": false,
+            "showPoints": "never",
+            "pointSize": 5,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "axisPlacement": "auto",
+            "axisLabel": "",
+            "axisColorMode": "text",
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "expr": "sum(rate(eventhorizon_bytes_received_total{protocol=\"telnet\"}[$__rate_interval]))",
+          "instant": false,
+          "range": true,
+          "refId": "X",
+          "legendFormat": "Received/s"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "expr": "sum(rate(eventhorizon_bytes_sent_total{protocol=\"telnet\"}[$__rate_interval]))",
+          "instant": false,
+          "range": true,
+          "refId": "Y",
+          "legendFormat": "Sent/s"
+        }
+      ],
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc",
+          "hideZeros": false
+        }
+      }
+    },
+    {
+      "id": 26,
+      "type": "row",
+      "title": "MQTT: Network Connections",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 49
+      },
+      "panels": [
+        {
+          "id": 15,
+          "type": "stat",
+          "title": "MQTT Network Connection lifecycle accounting",
+          "description": "**These are MQTT Network Connections, not MQTT Sessions.** A tracked MQTT Network Connection is one accepted TCP connection, whether or not it ever reaches an accepted CONNECT; an MQTT Session is a protocol concept that can outlive and resume across network connections and is never measured here. Sources: `current_connected_clients{server=\"MQTT\"}`, `eventhorizon_mqtt_network_connection_finalizations_total`, `eventhorizon_mqtt_network_connection_duration_ms_count`. **A connection open at both edges of the selected range is counted in \"Active now\" and in neither of the other two.** \"Finalized\" and \"Duration observations\" are expected to be equal.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 24,
+            "x": 0,
+            "y": 50
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "mappings": [],
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "#A78BFA"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "#A78BFA",
+                    "value": null
+                  }
+                ]
+              },
+              "decimals": 0
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "sum(current_connected_clients{server=\"MQTT\"})",
+              "instant": true,
+              "range": false,
+              "refId": "Z",
+              "legendFormat": "Active now"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "sum(increase(eventhorizon_mqtt_network_connection_finalizations_total[$__range]))",
+              "instant": true,
+              "range": false,
+              "refId": "A",
+              "legendFormat": "Finalized in range"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "increase(eventhorizon_mqtt_network_connection_duration_ms_count[$__range])",
+              "instant": true,
+              "range": false,
+              "refId": "B",
+              "legendFormat": "Duration observations in range"
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "values": false,
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": ""
+            },
+            "orientation": "auto",
+            "textMode": "value_and_name",
+            "wideLayout": false,
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "percentChangeColorMode": "standard",
+            "showPercentChange": false
+          }
+        },
+        {
+          "id": 16,
+          "type": "timeseries",
+          "title": "MQTT accepted vs. finalized",
+          "description": "Accepted tracked MQTT Network Connections and their finalizations: `total_connects{server=\"MQTT\"}` and `eventhorizon_mqtt_network_connection_finalizations_total`. Accepted counts TCP acceptance, not accepted CONNECT.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 55
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "decimals": 0,
+              "color": {
+                "mode": "palette-classic"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "linear",
+                "lineWidth": 2,
+                "fillOpacity": 12,
+                "gradientMode": "none",
+                "spanNulls": false,
+                "showPoints": "never",
+                "pointSize": 5,
+                "stacking": {
+                  "mode": "none",
+                  "group": "A"
+                },
+                "axisPlacement": "auto",
+                "axisLabel": "",
+                "axisColorMode": "text",
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "increase(total_connects{server=\"MQTT\"}[$__rate_interval])",
+              "instant": false,
+              "range": true,
+              "refId": "C",
+              "legendFormat": "Accepted"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "sum(increase(eventhorizon_mqtt_network_connection_finalizations_total[$__rate_interval]))",
+              "instant": false,
+              "range": true,
+              "refId": "D",
+              "legendFormat": "Finished"
+            }
+          ],
+          "options": {
+            "legend": {
+              "showLegend": true,
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc",
+              "hideZeros": false
+            }
+          }
+        },
+        {
+          "id": 17,
+          "type": "timeseries",
+          "title": "MQTT accepted but not finalized",
+          "description": "Accepted minus finalized over the selected time range. **A non-zero gap can be normal when connections or exchanges are still active. This panel is an operational hint, not deterministic validation proof.** Deterministic reconciliation requires settled boundary scrapes over a complete process epoch; see `METRICS.md`.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 55
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "decimals": 0,
+              "color": {
+                "mode": "palette-classic"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "linear",
+                "lineWidth": 2,
+                "fillOpacity": 12,
+                "gradientMode": "none",
+                "spanNulls": false,
+                "showPoints": "never",
+                "pointSize": 5,
+                "stacking": {
+                  "mode": "none",
+                  "group": "A"
+                },
+                "axisPlacement": "auto",
+                "axisLabel": "",
+                "axisColorMode": "text",
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "sum(increase(total_connects{server=\"MQTT\"}[$__range]))\n  - sum(increase(eventhorizon_mqtt_network_connection_finalizations_total[$__range]))",
+              "instant": false,
+              "range": true,
+              "refId": "E",
+              "legendFormat": "Accepted but not yet finished"
+            }
+          ],
+          "options": {
+            "legend": {
+              "showLegend": true,
+              "displayMode": "list",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc",
+              "hideZeros": false
+            }
+          }
+        },
+        {
+          "id": 18,
+          "type": "bargauge",
+          "title": "MQTT finalizations by reason",
+          "description": "MQTT Network Connection finalization reason: `eventhorizon_mqtt_network_connection_finalizations_total{finalization_reason}`, ten bounded values. The first authoritative terminal reason is retained even if later cleanup encounters another failure. It finalizes a transport connection, not persistent MQTT Session State. **This panel counts finalized observations only.**",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 63
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "decimals": 0,
+              "mappings": [],
+              "color": {
+                "mode": "palette-classic"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "text",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "sum by (finalization_reason) (increase(eventhorizon_mqtt_network_connection_finalizations_total[$__range]))",
+              "instant": true,
+              "range": false,
+              "refId": "F",
+              "legendFormat": "{{finalization_reason}}"
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "values": false,
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": ""
+            },
+            "orientation": "horizontal",
+            "displayMode": "gradient",
+            "valueMode": "color",
+            "showUnfilled": true,
+            "sizing": "auto",
+            "minVizWidth": 8,
+            "minVizHeight": 16,
+            "maxVizHeight": 300,
+            "namePlacement": "auto",
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": false
+            }
+          }
+        },
+        {
+          "id": 19,
+          "type": "bargauge",
+          "title": "MQTT interaction depth at finalization",
+          "description": "MQTT interaction depth: `eventhorizon_mqtt_network_connection_interaction_depth_total{depth_level}`. Bounded final classification: `0` no accepted CONNECT, `1` accepted CONNECT without a meaningful operation, `2` one accepted PUBLISH/SUBSCRIBE/UNSUBSCRIBE, `3` at least two. Control packets, acknowledgements, keep-alive traffic, malformed packets, and retransmissions do not increase depth. It is not a packet count, topic count, or QoS depth.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 63
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "decimals": 0,
+              "mappings": [],
+              "color": {
+                "mode": "palette-classic"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "text",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "sum by (depth_level) (increase(eventhorizon_mqtt_network_connection_interaction_depth_total[$__range]))",
+              "instant": true,
+              "range": false,
+              "refId": "G",
+              "legendFormat": "depth {{depth_level}}"
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "values": false,
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": ""
+            },
+            "orientation": "horizontal",
+            "displayMode": "gradient",
+            "valueMode": "color",
+            "showUnfilled": true,
+            "sizing": "auto",
+            "minVizWidth": 8,
+            "minVizHeight": 16,
+            "maxVizHeight": 300,
+            "namePlacement": "auto",
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": false
+            }
+          }
+        },
+        {
+          "id": 20,
+          "type": "heatmap",
+          "title": "MQTT Network Connection duration distribution",
+          "description": "MQTT Network Connection duration: `eventhorizon_mqtt_network_connection_duration_ms`. Acceptance to the one finalization boundary, including time before an accepted CONNECT. **Counts finalized observations only; open connections are absent.** This is not an MQTT Session duration and not a CONNECT exchange duration.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "gridPos": {
+            "h": 9,
+            "w": 12,
+            "x": 0,
+            "y": 71
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "sum by (le) (increase(eventhorizon_mqtt_network_connection_duration_ms_bucket[$__rate_interval]))",
+              "instant": false,
+              "range": true,
+              "refId": "H",
+              "legendFormat": "{{le}}",
+              "format": "heatmap"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "scaleDistribution": {
+                  "type": "linear"
+                }
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "calculate": false,
+            "cellGap": 1,
+            "cellValues": {
+              "unit": "short"
+            },
+            "color": {
+              "mode": "scheme",
+              "scheme": "Oranges",
+              "steps": 64,
+              "reverse": false,
+              "exponent": 0.5,
+              "fill": "dark-orange",
+              "min": 0
+            },
+            "exemplars": {
+              "color": "rgba(255,0,255,0.7)"
+            },
+            "filterValues": {
+              "le": 1e-09
+            },
+            "legend": {
+              "show": true
+            },
+            "rowsFrame": {
+              "layout": "auto",
+              "value": "Finalized observations"
+            },
+            "showValue": "never",
+            "tooltip": {
+              "mode": "single",
+              "showColorScale": false,
+              "yHistogram": true
+            },
+            "yAxis": {
+              "axisPlacement": "left",
+              "reverse": false,
+              "unit": "ms"
+            }
+          }
+        },
+        {
+          "id": 21,
+          "type": "stat",
+          "title": "MQTT Network Connection duration (mean / p50 / p95)",
+          "description": "MQTT Network Connection duration: `eventhorizon_mqtt_network_connection_duration_ms`. Computed over the selected time range from finalized observations only. Blank means nothing finished in range: it does not mean nothing is happening; check \"Active now\".",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "gridPos": {
+            "h": 9,
+            "w": 12,
+            "x": 12,
+            "y": 71
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ms",
+              "mappings": [],
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "text"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "text",
+                    "value": null
+                  }
+                ]
+              },
+              "decimals": 0
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "increase(eventhorizon_mqtt_network_connection_duration_ms_sum[$__range])\n  / increase(eventhorizon_mqtt_network_connection_duration_ms_count[$__range])",
+              "instant": true,
+              "range": false,
+              "refId": "I",
+              "legendFormat": "Mean"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "histogram_quantile(0.50, sum by (le) (increase(eventhorizon_mqtt_network_connection_duration_ms_bucket[$__range])))",
+              "instant": true,
+              "range": false,
+              "refId": "J",
+              "legendFormat": "p50"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "histogram_quantile(0.95, sum by (le) (increase(eventhorizon_mqtt_network_connection_duration_ms_bucket[$__range])))",
+              "instant": true,
+              "range": false,
+              "refId": "K",
+              "legendFormat": "p95"
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "values": false,
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": ""
+            },
+            "orientation": "auto",
+            "textMode": "auto",
+            "wideLayout": true,
+            "colorMode": "none",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "percentChangeColorMode": "standard",
+            "showPercentChange": false
+          }
+        },
+        {
+          "id": 22,
+          "type": "stat",
+          "title": "MQTT CONNECT-to-CONNACK time (p50 / p95)",
+          "description": "MQTT CONNECT-to-CONNACK duration: `eventhorizon_mqtt_connect_to_connack_duration_ms`. From an accepted MQTT 3.1.1 CONNECT to complete successful transmission of its success CONNACK. Excludes pre-CONNECT connection time and all later activity. **Server-observed: it does not prove the client received or parsed the CONNACK**, and it is not a round-trip or client response time. Computed over the selected time range from finalized observations only. Blank means nothing finished in range: it does not mean nothing is happening; check \"Active now\".",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "gridPos": {
+            "h": 6,
+            "w": 12,
+            "x": 0,
+            "y": 80
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ms",
+              "mappings": [],
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "#A78BFA"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "#A78BFA",
+                    "value": null
+                  }
+                ]
+              },
+              "decimals": 0
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "histogram_quantile(0.50, sum by (le) (increase(eventhorizon_mqtt_connect_to_connack_duration_ms_bucket[$__range])))",
+              "instant": true,
+              "range": false,
+              "refId": "L",
+              "legendFormat": "p50"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "histogram_quantile(0.95, sum by (le) (increase(eventhorizon_mqtt_connect_to_connack_duration_ms_bucket[$__range])))",
+              "instant": true,
+              "range": false,
+              "refId": "M",
+              "legendFormat": "p95"
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "values": false,
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": ""
+            },
+            "orientation": "auto",
+            "textMode": "auto",
+            "wideLayout": true,
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "percentChangeColorMode": "standard",
+            "showPercentChange": false
+          }
+        },
+        {
+          "id": 23,
+          "type": "bargauge",
+          "title": "MQTT protocol actions",
+          "description": "`eventhorizon_protocol_actions_total{protocol=\"mqtt\"}`, twelve bounded actions. Scoped to MQTT deliberately: a family-wide sum across protocols mixes unrelated observation boundaries and has no useful meaning. Counts server-side boundaries crossed, not client receipt, parsing, or engagement. A partial MQTT Control Packet write emits no completed-packet action.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "gridPos": {
+            "h": 6,
+            "w": 12,
+            "x": 12,
+            "y": 80
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "decimals": 0,
+              "mappings": [],
+              "color": {
+                "mode": "palette-classic"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "text",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "sum by (action) (increase(eventhorizon_protocol_actions_total{protocol=\"mqtt\"}[$__range]))",
+              "instant": true,
+              "range": false,
+              "refId": "N",
+              "legendFormat": "{{action}}"
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "values": false,
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": ""
+            },
+            "orientation": "horizontal",
+            "displayMode": "gradient",
+            "valueMode": "color",
+            "showUnfilled": true,
+            "sizing": "auto",
+            "minVizWidth": 8,
+            "minVizHeight": 16,
+            "maxVizHeight": 300,
+            "namePlacement": "auto",
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": false
+            }
+          }
+        },
+        {
+          "id": 24,
+          "type": "timeseries",
+          "title": "MQTT read and write errors by reason",
+          "description": "`eventhorizon_read_errors_total` and `eventhorizon_write_errors_total` for MQTT, four bounded reasons. A clean TCP EOF is a peer finalization, not an error. Zero errors does not prove telemetry completeness. This counter uses bounded labels only: no errno, no error text, no identities.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 86
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "decimals": 0,
+              "color": {
+                "mode": "palette-classic"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "linear",
+                "lineWidth": 2,
+                "fillOpacity": 12,
+                "gradientMode": "none",
+                "spanNulls": false,
+                "showPoints": "never",
+                "pointSize": 5,
+                "stacking": {
+                  "mode": "none",
+                  "group": "A"
+                },
+                "axisPlacement": "auto",
+                "axisLabel": "",
+                "axisColorMode": "text",
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "sum by (reason) (increase(eventhorizon_read_errors_total{protocol=\"mqtt\"}[$__rate_interval]))",
+              "instant": false,
+              "range": true,
+              "refId": "O",
+              "legendFormat": "read {{reason}}"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "sum by (reason) (increase(eventhorizon_write_errors_total{protocol=\"mqtt\"}[$__rate_interval]))",
+              "instant": false,
+              "range": true,
+              "refId": "P",
+              "legendFormat": "write {{reason}}"
+            }
+          ],
+          "options": {
+            "legend": {
+              "showLegend": true,
+              "displayMode": "list",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc",
+              "hideZeros": false
+            }
+          }
+        },
+        {
+          "id": 25,
+          "type": "timeseries",
+          "title": "MQTT application bytes",
+          "description": "Positive socket-return bytes only: `eventhorizon_bytes_received_total`, `eventhorizon_bytes_sent_total`. Includes protocol framing and partial writes. **Not TCP/IP wire volume; does not prove client receipt.**",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 86
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "Bps",
+              "decimals": 1,
+              "color": {
+                "mode": "palette-classic"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "linear",
+                "lineWidth": 2,
+                "fillOpacity": 12,
+                "gradientMode": "none",
+                "spanNulls": false,
+                "showPoints": "never",
+                "pointSize": 5,
+                "stacking": {
+                  "mode": "none",
+                  "group": "A"
+                },
+                "axisPlacement": "auto",
+                "axisLabel": "",
+                "axisColorMode": "text",
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "sum(rate(eventhorizon_bytes_received_total{protocol=\"mqtt\"}[$__rate_interval]))",
+              "instant": false,
+              "range": true,
+              "refId": "Q",
+              "legendFormat": "Received/s"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "sum(rate(eventhorizon_bytes_sent_total{protocol=\"mqtt\"}[$__rate_interval]))",
+              "instant": false,
+              "range": true,
+              "refId": "R",
+              "legendFormat": "Sent/s"
+            }
+          ],
+          "options": {
+            "legend": {
+              "showLegend": true,
+              "displayMode": "list",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc",
+              "hideZeros": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 35,
+      "type": "row",
+      "title": "CoAP: request and CON-response exchanges",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 95
+      },
+      "panels": [
+        {
+          "id": 27,
+          "type": "stat",
+          "title": "CoAP request exchange lifecycle accounting",
+          "description": "Active CoAP request exchange: `eventhorizon_coap_active_request_exchanges`; finalizations from `eventhorizon_protocol_actions_total{protocol=\"coap\"}`; observations from `eventhorizon_coap_request_exchange_duration_ms_count`. An active request exchange is an accepted supported GET with neither a transmitted matching response nor a termination: it is an outstanding **request obligation**, not a connected client and not a UDP session. **A request still open at both edges of the selected range is counted in \"Active now\" only.**",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 24,
+            "x": 0,
+            "y": 96
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "mappings": [],
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "#56B9B4"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "#56B9B4",
+                    "value": null
+                  }
+                ]
+              },
+              "decimals": 0
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "eventhorizon_coap_active_request_exchanges",
+              "instant": true,
+              "range": false,
+              "refId": "S",
+              "legendFormat": "Active now"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "sum(increase(eventhorizon_protocol_actions_total{protocol=\"coap\",action=~\"get_response_sent|get_request_terminated\"}[$__range]))",
+              "instant": true,
+              "range": false,
+              "refId": "T",
+              "legendFormat": "Finalized in range"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "sum(increase(eventhorizon_coap_request_exchange_duration_ms_count[$__range]))",
+              "instant": true,
+              "range": false,
+              "refId": "U",
+              "legendFormat": "Duration observations in range"
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "values": false,
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": ""
+            },
+            "orientation": "auto",
+            "textMode": "value_and_name",
+            "wideLayout": false,
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "percentChangeColorMode": "standard",
+            "showPercentChange": false
+          }
+        },
+        {
+          "id": 28,
+          "type": "stat",
+          "title": "CoAP request handling time (p50 / p95 by outcome)",
+          "description": "CoAP request-exchange duration: `eventhorizon_coap_request_exchange_duration_ms{outcome}`. From acceptance of the first non-duplicate supported GET until either the first matching response is transmitted (`response_sent`) or the exchange is terminated (`terminated`). It excludes duplicates, response retransmissions, and **all later Acknowledgement waiting**: that time belongs to the CoAP reliability panels below. Not a CoAP session duration. `response_sent` proves server-side transmission, not client receipt. Computed over the selected time range from finalized observations only. Blank means nothing finished in range: it does not mean nothing is happening; check \"Active now\".",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 12,
+            "x": 0,
+            "y": 101
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ms",
+              "mappings": [],
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "text"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "text",
+                    "value": null
+                  }
+                ]
+              },
+              "decimals": 0
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "histogram_quantile(0.50, sum by (outcome, le) (increase(eventhorizon_coap_request_exchange_duration_ms_bucket[$__range])))",
+              "instant": true,
+              "range": false,
+              "refId": "V",
+              "legendFormat": "p50 {{outcome}}"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "histogram_quantile(0.95, sum by (outcome, le) (increase(eventhorizon_coap_request_exchange_duration_ms_bucket[$__range])))",
+              "instant": true,
+              "range": false,
+              "refId": "W",
+              "legendFormat": "p95 {{outcome}}"
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "values": false,
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": ""
+            },
+            "orientation": "auto",
+            "textMode": "auto",
+            "wideLayout": true,
+            "colorMode": "none",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "percentChangeColorMode": "standard",
+            "showPercentChange": false
+          }
+        },
+        {
+          "id": 29,
+          "type": "timeseries",
+          "title": "CoAP request outcomes",
+          "description": "`eventhorizon_coap_request_exchange_duration_ms_count{outcome}`. Shows **when** request exchanges reached a terminal boundary. Two mutually exclusive outcomes: `response_sent` and `terminated`.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 12,
+            "x": 12,
+            "y": 101
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "decimals": 0,
+              "color": {
+                "mode": "palette-classic"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "linear",
+                "lineWidth": 2,
+                "fillOpacity": 12,
+                "gradientMode": "none",
+                "spanNulls": false,
+                "showPoints": "never",
+                "pointSize": 5,
+                "stacking": {
+                  "mode": "none",
+                  "group": "A"
+                },
+                "axisPlacement": "auto",
+                "axisLabel": "",
+                "axisColorMode": "text",
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "sum by (outcome) (increase(eventhorizon_coap_request_exchange_duration_ms_count[$__rate_interval]))",
+              "instant": false,
+              "range": true,
+              "refId": "X",
+              "legendFormat": "{{outcome}}"
+            }
+          ],
+          "options": {
+            "legend": {
+              "showLegend": true,
+              "displayMode": "list",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc",
+              "hideZeros": false
+            }
+          }
+        },
+        {
+          "id": 30,
+          "type": "stat",
+          "title": "CoAP CON reliability lifecycle accounting",
+          "description": "Active CoAP CON-response exchange: `eventhorizon_coap_active_con_response_exchanges`; finalizations from `eventhorizon_protocol_actions_total{protocol=\"coap\"}`; observations from `eventhorizon_coap_con_response_exchange_duration_ms_count`. A successfully transmitted outbound Confirmable response still awaiting a matching Acknowledgement or Reset and not yet retry-exhausted. It is an outstanding **message-layer obligation**, independent from the request exchange above and not an active endpoint. Retransmissions are non-terminal and never finalize it; duplicate and late control messages create no second outcome.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 24,
+            "x": 0,
+            "y": 108
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "mappings": [],
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "#56B9B4"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "#56B9B4",
+                    "value": null
+                  }
+                ]
+              },
+              "decimals": 0
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "eventhorizon_coap_active_con_response_exchanges",
+              "instant": true,
+              "range": false,
+              "refId": "Y",
+              "legendFormat": "Active now"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "sum(increase(eventhorizon_protocol_actions_total{protocol=\"coap\",action=~\"con_response_ack_received|con_response_rst_received|con_response_retry_exhausted\"}[$__range]))",
+              "instant": true,
+              "range": false,
+              "refId": "Z",
+              "legendFormat": "Finalized in range"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "sum(increase(eventhorizon_coap_con_response_exchange_duration_ms_count[$__range]))",
+              "instant": true,
+              "range": false,
+              "refId": "A",
+              "legendFormat": "Duration observations in range"
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "values": false,
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": ""
+            },
+            "orientation": "auto",
+            "textMode": "value_and_name",
+            "wideLayout": false,
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "percentChangeColorMode": "standard",
+            "showPercentChange": false
+          }
+        },
+        {
+          "id": 31,
+          "type": "stat",
+          "title": "CoAP reliability waiting time (p50 / p95 by outcome)",
+          "description": "CoAP CON-response exchange duration: `eventhorizon_coap_con_response_exchange_duration_ms{outcome}`. From the first successful outbound Confirmable response transmission until the first matching Acknowledgement, first matching Reset, or retry exhaustion. **Includes retransmission waiting** and excludes all request-exchange time before the response was sent. Three bounded outcomes: `ack_received`, `rst_received`, `retry_exhausted`. Computed over the selected time range from finalized observations only. Blank means nothing finished in range: it does not mean nothing is happening; check \"Active now\".",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 12,
+            "x": 0,
+            "y": 113
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ms",
+              "mappings": [],
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "text"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "text",
+                    "value": null
+                  }
+                ]
+              },
+              "decimals": 0
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "histogram_quantile(0.50, sum by (outcome, le) (increase(eventhorizon_coap_con_response_exchange_duration_ms_bucket[$__range])))",
+              "instant": true,
+              "range": false,
+              "refId": "B",
+              "legendFormat": "p50 {{outcome}}"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "histogram_quantile(0.95, sum by (outcome, le) (increase(eventhorizon_coap_con_response_exchange_duration_ms_bucket[$__range])))",
+              "instant": true,
+              "range": false,
+              "refId": "C",
+              "legendFormat": "p95 {{outcome}}"
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "values": false,
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": ""
+            },
+            "orientation": "auto",
+            "textMode": "auto",
+            "wideLayout": true,
+            "colorMode": "none",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "percentChangeColorMode": "standard",
+            "showPercentChange": false
+          }
+        },
+        {
+          "id": 32,
+          "type": "timeseries",
+          "title": "CoAP CON reliability outcomes",
+          "description": "`eventhorizon_coap_con_response_exchange_duration_ms_count{outcome}`. Shows **when** outbound Confirmable response exchanges reached a terminal boundary.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 12,
+            "x": 12,
+            "y": 113
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "decimals": 0,
+              "color": {
+                "mode": "palette-classic"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "linear",
+                "lineWidth": 2,
+                "fillOpacity": 12,
+                "gradientMode": "none",
+                "spanNulls": false,
+                "showPoints": "never",
+                "pointSize": 5,
+                "stacking": {
+                  "mode": "none",
+                  "group": "A"
+                },
+                "axisPlacement": "auto",
+                "axisLabel": "",
+                "axisColorMode": "text",
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "sum by (outcome) (increase(eventhorizon_coap_con_response_exchange_duration_ms_count[$__rate_interval]))",
+              "instant": false,
+              "range": true,
+              "refId": "D",
+              "legendFormat": "{{outcome}}"
+            }
+          ],
+          "options": {
+            "legend": {
+              "showLegend": true,
+              "displayMode": "list",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc",
+              "hideZeros": false
+            }
+          }
+        },
+        {
+          "id": 33,
+          "type": "bargauge",
+          "title": "CoAP protocol actions",
+          "description": "`eventhorizon_protocol_actions_total{protocol=\"coap\"}`, eight bounded actions. Request actions are Token-correlated; CON-response reliability actions are Message-ID-correlated: the two populations are independent. A sent or retransmitted action requires `sendto()` to return the exact encoded datagram length. Scoped to CoAP deliberately: a family-wide sum across protocols has no useful meaning.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 120
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "decimals": 0,
+              "mappings": [],
+              "color": {
+                "mode": "palette-classic"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "text",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "sum by (action) (increase(eventhorizon_protocol_actions_total{protocol=\"coap\"}[$__range]))",
+              "instant": true,
+              "range": false,
+              "refId": "E",
+              "legendFormat": "{{action}}"
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "values": false,
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": ""
+            },
+            "orientation": "horizontal",
+            "displayMode": "gradient",
+            "valueMode": "color",
+            "showUnfilled": true,
+            "sizing": "auto",
+            "minVizWidth": 8,
+            "minVizHeight": 16,
+            "maxVizHeight": 300,
+            "namePlacement": "auto",
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": false
+            }
+          }
+        },
+        {
+          "id": 34,
+          "type": "timeseries",
+          "title": "CoAP write errors by reason",
+          "description": "`eventhorizon_write_errors_total{protocol=\"coap\"}`, four bounded reasons. A short positive UDP send emits no sent action and is recorded here with reason `other`. Receive failures and malformed datagrams precede the supported-request boundary and are not counted here. This counter uses bounded labels only: no errno, no error text, no identities.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 120
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "decimals": 0,
+              "color": {
+                "mode": "palette-classic"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "linear",
+                "lineWidth": 2,
+                "fillOpacity": 12,
+                "gradientMode": "none",
+                "spanNulls": false,
+                "showPoints": "never",
+                "pointSize": 5,
+                "stacking": {
+                  "mode": "none",
+                  "group": "A"
+                },
+                "axisPlacement": "auto",
+                "axisLabel": "",
+                "axisColorMode": "text",
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "sum by (reason) (increase(eventhorizon_write_errors_total{protocol=\"coap\"}[$__rate_interval]))",
+              "instant": false,
+              "range": true,
+              "refId": "F",
+              "legendFormat": "{{reason}}"
+            }
+          ],
+          "options": {
+            "legend": {
+              "showLegend": true,
+              "displayMode": "list",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc",
+              "hideZeros": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 42,
+      "type": "row",
+      "title": "UPnP: discovery and description responses",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 129
+      },
+      "panels": [
+        {
+          "id": 36,
+          "type": "bargauge",
+          "title": "UPnP SSDP discovery actions",
+          "description": "`eventhorizon_protocol_actions_total{protocol=\"upnp\"}` restricted to the SSDP discovery exchange. Discovery and device-description are **independent** exchanges in this implementation: this dashboard does not correlate an M-SEARCH with a later description GET, and the ratio between these two bars establishes no discovery follow-through. A sent action proves server-side transmission, not client receipt.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 12,
+            "x": 0,
+            "y": 135
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "decimals": 0,
+              "mappings": [],
+              "color": {
+                "mode": "palette-classic"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "text",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "sum by (action) (increase(eventhorizon_protocol_actions_total{protocol=\"upnp\",action=~\"ssdp_msearch_received|ssdp_discovery_response_sent\"}[$__range]))",
+              "instant": true,
+              "range": false,
+              "refId": "G",
+              "legendFormat": "{{action}}"
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "values": false,
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": ""
+            },
+            "orientation": "horizontal",
+            "displayMode": "gradient",
+            "valueMode": "color",
+            "showUnfilled": true,
+            "sizing": "auto",
+            "minVizWidth": 8,
+            "minVizHeight": 16,
+            "maxVizHeight": 300,
+            "namePlacement": "auto",
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": false
+            }
+          }
+        },
+        {
+          "id": 37,
+          "type": "bargauge",
+          "title": "UPnP device-description actions",
+          "description": "`eventhorizon_protocol_actions_total{protocol=\"upnp\"}` restricted to the HTTP device-description exchange: `description_get_received`, `description_response_started`, `description_response_completed`, `description_response_terminated`. A valid GET that never produces a positive-byte write is a pre-start failure: it never starts a response and therefore never terminates one.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 12,
+            "x": 12,
+            "y": 135
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "decimals": 0,
+              "mappings": [],
+              "color": {
+                "mode": "palette-classic"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "text",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "sum by (action) (increase(eventhorizon_protocol_actions_total{protocol=\"upnp\",action=~\"description_get_received|description_response_started|description_response_completed|description_response_terminated\"}[$__range]))",
+              "instant": true,
+              "range": false,
+              "refId": "H",
+              "legendFormat": "{{action}}"
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "values": false,
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": ""
+            },
+            "orientation": "horizontal",
+            "displayMode": "gradient",
+            "valueMode": "color",
+            "showUnfilled": true,
+            "sizing": "auto",
+            "minVizWidth": 8,
+            "minVizHeight": 16,
+            "maxVizHeight": 300,
+            "namePlacement": "auto",
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": false
+            }
+          }
+        },
+        {
+          "id": 38,
+          "type": "stat",
+          "title": "UPnP description response lifecycle accounting",
+          "description": "Active description response: `eventhorizon_upnp_active_description_responses`; finalizations from `eventhorizon_protocol_actions_total{protocol=\"upnp\"}`; observations from `eventhorizon_upnp_description_stream_duration_ms_count`. **UPnP description responses still active**: started by a first positive-byte write but not yet completed or terminated: are counted in \"Active now\" and contribute no duration. Its current count is an independently observed response-state measurement, not a connected-client count and not derived from the action counters.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "gridPos": {
+            "h": 5,
+            "w": 24,
+            "x": 0,
+            "y": 130
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "mappings": [],
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "#F07AB8"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "#F07AB8",
+                    "value": null
+                  }
+                ]
+              },
+              "decimals": 0
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "eventhorizon_upnp_active_description_responses",
+              "instant": true,
+              "range": false,
+              "refId": "I",
+              "legendFormat": "Active now"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "sum(increase(eventhorizon_protocol_actions_total{protocol=\"upnp\",action=~\"description_response_completed|description_response_terminated\"}[$__range]))",
+              "instant": true,
+              "range": false,
+              "refId": "J",
+              "legendFormat": "Finalized in range"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "sum(increase(eventhorizon_upnp_description_stream_duration_ms_count[$__range]))",
+              "instant": true,
+              "range": false,
+              "refId": "K",
+              "legendFormat": "Duration observations in range"
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "values": false,
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": ""
+            },
+            "orientation": "auto",
+            "textMode": "value_and_name",
+            "wideLayout": false,
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "percentChangeColorMode": "standard",
+            "showPercentChange": false
+          }
+        },
+        {
+          "id": 39,
+          "type": "stat",
+          "title": "UPnP description response time (p50 / p95 by outcome)",
+          "description": "Description stream duration: `eventhorizon_upnp_description_stream_duration_ms{outcome}`. From description response start (first positive-byte write) to its one completion or termination outcome. `completed` requires complete HTTP/1.1 headers and exactly the declared `Content-Length` bytes of a valid `Content-Type: text/xml` description written within 30 seconds. **This duration is observed by the server. It does not prove the client received the response.** Not a request-to-response latency and not an active response age. Computed over the selected time range from finalized observations only. Blank means nothing finished in range: it does not mean nothing is happening; check \"Active now\".",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 12,
+            "x": 0,
+            "y": 142
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ms",
+              "mappings": [],
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "text"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "text",
+                    "value": null
+                  }
+                ]
+              },
+              "decimals": 0
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "histogram_quantile(0.50, sum by (outcome, le) (increase(eventhorizon_upnp_description_stream_duration_ms_bucket[$__range])))",
+              "instant": true,
+              "range": false,
+              "refId": "L",
+              "legendFormat": "p50 {{outcome}}"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "histogram_quantile(0.95, sum by (outcome, le) (increase(eventhorizon_upnp_description_stream_duration_ms_bucket[$__range])))",
+              "instant": true,
+              "range": false,
+              "refId": "M",
+              "legendFormat": "p95 {{outcome}}"
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "values": false,
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": ""
+            },
+            "orientation": "auto",
+            "textMode": "auto",
+            "wideLayout": true,
+            "colorMode": "none",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "percentChangeColorMode": "standard",
+            "showPercentChange": false
+          }
+        },
+        {
+          "id": 40,
+          "type": "timeseries",
+          "title": "UPnP description response outcomes",
+          "description": "`eventhorizon_upnp_description_stream_duration_ms_count{outcome}`. Shows **when** description responses reached a terminal boundary. Two mutually exclusive outcomes: `completed` and `terminated`.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 12,
+            "x": 12,
+            "y": 142
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "decimals": 0,
+              "color": {
+                "mode": "palette-classic"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "linear",
+                "lineWidth": 2,
+                "fillOpacity": 12,
+                "gradientMode": "none",
+                "spanNulls": false,
+                "showPoints": "never",
+                "pointSize": 5,
+                "stacking": {
+                  "mode": "none",
+                  "group": "A"
+                },
+                "axisPlacement": "auto",
+                "axisLabel": "",
+                "axisColorMode": "text",
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "sum by (outcome) (increase(eventhorizon_upnp_description_stream_duration_ms_count[$__rate_interval]))",
+              "instant": false,
+              "range": true,
+              "refId": "N",
+              "legendFormat": "{{outcome}}"
+            }
+          ],
+          "options": {
+            "legend": {
+              "showLegend": true,
+              "displayMode": "list",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc",
+              "hideZeros": false
+            }
+          }
+        },
+        {
+          "id": 41,
+          "type": "timeseries",
+          "title": "UPnP write errors by reason",
+          "description": "`eventhorizon_write_errors_total{protocol=\"upnp\"}`, four bounded reasons. Covers write failures crossing the frozen UPnP reliability boundaries, including SSDP discovery responses and description-response writes. This counter uses bounded labels only: no errno, no error text, no identities.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 24,
+            "x": 0,
+            "y": 149
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "decimals": 0,
+              "color": {
+                "mode": "palette-classic"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "linear",
+                "lineWidth": 2,
+                "fillOpacity": 12,
+                "gradientMode": "none",
+                "spanNulls": false,
+                "showPoints": "never",
+                "pointSize": 5,
+                "stacking": {
+                  "mode": "none",
+                  "group": "A"
+                },
+                "axisPlacement": "auto",
+                "axisLabel": "",
+                "axisColorMode": "text",
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "sum by (reason) (increase(eventhorizon_write_errors_total{protocol=\"upnp\"}[$__rate_interval]))",
+              "instant": false,
+              "range": true,
+              "refId": "O",
+              "legendFormat": "{{reason}}"
+            }
+          ],
+          "options": {
+            "legend": {
+              "showLegend": true,
+              "displayMode": "list",
+              "placement": "bottom",
+              "calcs": []
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc",
+              "hideZeros": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 47,
+      "type": "row",
+      "title": "Telemetry health",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 174
+      },
+      "panels": [
+        {
+          "id": 44,
+          "type": "timeseries",
+          "title": "Rejected metric datagrams by reason",
+          "description": "`eventhorizon_exporter_malformed_messages_total{reason}` counts datagrams rejected before metric mutation. Labels are bounded and contain no errno, error text, or identity. Zero does not prove delivery completeness: lost datagrams are invisible, valid duplicates can be applied again, and exporter restart resets in-memory state.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 16,
+            "x": 0,
+            "y": 175
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "decimals": 0,
+              "color": {
+                "mode": "palette-classic"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "linear",
+                "lineWidth": 2,
+                "fillOpacity": 12,
+                "gradientMode": "none",
+                "spanNulls": false,
+                "showPoints": "never",
+                "pointSize": 5,
+                "stacking": {
+                  "mode": "none",
+                  "group": "A"
+                },
+                "axisPlacement": "auto",
+                "axisLabel": "",
+                "axisColorMode": "text",
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "sum by (reason) (increase(eventhorizon_exporter_malformed_messages_total[$__rate_interval]))",
+              "instant": false,
+              "range": true,
+              "refId": "P",
+              "legendFormat": "{{reason}}"
+            }
+          ],
+          "options": {
+            "legend": {
+              "showLegend": true,
+              "displayMode": "table",
+              "placement": "bottom",
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc",
+              "hideZeros": false
+            }
+          }
+        },
+        {
+          "id": 45,
+          "type": "stat",
+          "title": "Rejected metric datagrams in range",
+          "description": "`eventhorizon_exporter_malformed_messages_total` summed over the selected range. Zero means the exporter rejected no observed datagram. It does not prove that every producer event arrived or that no valid datagram was duplicated.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 8,
+            "x": 16,
+            "y": 175
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "mappings": [],
+              "color": {
+                "mode": "thresholds"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "#1F5F3B",
+                    "value": null
+                  },
+                  {
+                    "color": "#7A4B12",
+                    "value": 1
+                  }
+                ]
+              },
+              "decimals": 0
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "sum(increase(eventhorizon_exporter_malformed_messages_total[$__range]))",
+              "instant": true,
+              "range": false,
+              "refId": "Q",
+              "legendFormat": "Rejected in range"
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "values": false,
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": ""
+            },
+            "orientation": "auto",
+            "textMode": "auto",
+            "wideLayout": true,
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "percentChangeColorMode": "standard",
+            "showPercentChange": false
+          }
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "SSH / Endlessh: tracked boundaries",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 156
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "panels": [
+        {
+          "type": "timeseries",
+          "title": "Accepted SSH connections",
+          "description": "Accepted SSH TCP connections from `total_connects{server=\"SSH\"}`. A successful `accept()` is exact. SSH has no active-client gauge because Endlessh does not read client sockets and cannot observe when a peer has gone.",
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 157
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "increase(total_connects{server=\"SSH\"}[$__rate_interval])",
+              "legendFormat": "accepted",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "linear",
+                "lineWidth": 2,
+                "fillOpacity": 12,
+                "gradientMode": "none",
+                "spanNulls": false,
+                "showPoints": "never",
+                "pointSize": 5,
+                "stacking": {
+                  "mode": "none",
+                  "group": "A"
+                },
+                "axisPlacement": "auto",
+                "axisLabel": "",
+                "axisColorMode": "text",
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "#8F84D8"
+              },
+              "unit": "short",
+              "min": 0
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "calcs": [
+                "sum"
+              ],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "id": 50
+        },
+        {
+          "type": "stat",
+          "title": "Right-censored at server shutdown",
+          "description": "Tracked-client observations that ended because the server stopped while the client was still tracked: `eventhorizon_ssh_tracked_client_lifetime_ms_count{observation_end_reason=\"server_shutdown\"}`. The observation ended for a server-side reason, so the tracked-client lifetime is at least the recorded value and its true extent is unknown. These are excluded from the lifetime distribution beside this panel.",
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 157
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "sum(increase(eventhorizon_ssh_tracked_client_lifetime_ms_count{observation_end_reason=\"server_shutdown\"}[$__range]))",
+              "instant": true,
+              "legendFormat": "censored",
+              "range": false,
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 0,
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "#8F84D8"
+              },
+              "mappings": []
+            },
+            "overrides": []
+          },
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "orientation": "horizontal",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "textMode": "value_and_name",
+            "showPercentChange": false,
+            "wideLayout": true,
+            "percentChangeColorMode": "standard"
+          },
+          "id": 51
+        },
+        {
+          "type": "heatmap",
+          "title": "Tracked-client lifetime: write failures",
+          "description": "Observed lifetime of Endlessh-tracked SSH clients: `eventhorizon_ssh_tracked_client_lifetime_ms{observation_end_reason=\"write_failed\"}`. From accepted TCP connection until a scheduled write failed and Endlessh removed the tracked client. **This is not peer connection duration:** peer EOF is not directly observed, the recorded value does not identify the exact peer-disconnect time or necessarily its cause, and detection may occur multiple write intervals later. Right-censored `server_shutdown` observations are excluded.",
+          "gridPos": {
+            "h": 9,
+            "w": 24,
+            "x": 0,
+            "y": 165
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "sum by (le) (increase(eventhorizon_ssh_tracked_client_lifetime_ms_bucket{observation_end_reason=\"write_failed\"}[$__rate_interval]))",
+              "instant": false,
+              "range": true,
+              "refId": "A",
+              "legendFormat": "{{le}}",
+              "format": "heatmap"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "scaleDistribution": {
+                  "type": "linear"
+                }
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "calculate": false,
+            "cellGap": 1,
+            "cellValues": {
+              "unit": "short"
+            },
+            "color": {
+              "mode": "scheme",
+              "scheme": "Oranges",
+              "steps": 64,
+              "reverse": false,
+              "exponent": 0.5,
+              "fill": "dark-orange",
+              "min": 0
+            },
+            "exemplars": {
+              "color": "rgba(255,0,255,0.7)"
+            },
+            "filterValues": {
+              "le": 1e-09
+            },
+            "legend": {
+              "show": true
+            },
+            "rowsFrame": {
+              "layout": "auto",
+              "value": "Observations"
+            },
+            "showValue": "never",
+            "tooltip": {
+              "mode": "single",
+              "showColorScale": false,
+              "yHistogram": true
+            },
+            "yAxis": {
+              "axisPlacement": "left",
+              "reverse": false,
+              "unit": "ms"
+            }
+          },
+          "id": 52
+        }
+      ],
+      "id": 48
+    },
+    {
+      "collapsed": true,
+      "description": "Optional container resource evidence. Requires the `docker-compose.cost.yml` overlay and its cAdvisor metrics; normal EventHorizon deployment does not require cAdvisor.",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 182
+      },
+      "id": 53,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "description": "CPU time consumed by each tarpit container, derived from cumulative cAdvisor CPU seconds. The value is a percentage of one CPU core and is not normalized by machine cores or container limits.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "linear",
+                "lineWidth": 2,
+                "fillOpacity": 12,
+                "gradientMode": "none",
+                "spanNulls": false,
+                "showPoints": "never",
+                "pointSize": 5,
+                "stacking": {
+                  "mode": "none",
+                  "group": "A"
+                },
+                "axisPlacement": "auto",
+                "axisLabel": "",
+                "axisColorMode": "text",
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "unit": "percent"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 9,
+            "w": 12,
+            "x": 0,
+            "y": 183
+          },
+          "id": 54,
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "expr": "sum by (container_label_com_docker_compose_service) (rate(container_cpu_usage_seconds_total{job=\"cadvisor\",container_label_com_docker_compose_project=~\"eventhorizon(-field)?\",container_label_com_docker_compose_service=~\"telnet_pit|mqtt_pit|coap_pit|upnp_pit|endlessh\",cpu=\"total\"}[$__rate_interval])) * 100",
+              "legendFormat": "{{container_label_com_docker_compose_service}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Tarpit CPU usage (% of one core)",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "description": "Receive and transmit rates from each tarpit container interface as observed by cAdvisor. Values include protocol, transport, and network overhead.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "drawStyle": "line",
+                "lineInterpolation": "linear",
+                "lineWidth": 2,
+                "fillOpacity": 12,
+                "gradientMode": "none",
+                "spanNulls": false,
+                "showPoints": "never",
+                "pointSize": 5,
+                "stacking": {
+                  "mode": "none",
+                  "group": "A"
+                },
+                "axisPlacement": "auto",
+                "axisLabel": "",
+                "axisColorMode": "text",
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "unit": "Bps"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 9,
+            "w": 12,
+            "x": 12,
+            "y": 183
+          },
+          "id": 55,
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "expr": "sum by (container_label_com_docker_compose_service, interface) (rate(container_network_receive_bytes_total{job=\"cadvisor\",container_label_com_docker_compose_project=~\"eventhorizon(-field)?\",container_label_com_docker_compose_service=~\"telnet_pit|mqtt_pit|coap_pit|upnp_pit|endlessh\"}[$__rate_interval]))",
+              "legendFormat": "RX {{container_label_com_docker_compose_service}} / {{interface}}",
+              "refId": "A"
+            },
+            {
+              "expr": "sum by (container_label_com_docker_compose_service, interface) (rate(container_network_transmit_bytes_total{job=\"cadvisor\",container_label_com_docker_compose_project=~\"eventhorizon(-field)?\",container_label_com_docker_compose_service=~\"telnet_pit|mqtt_pit|coap_pit|upnp_pit|endlessh\"}[$__rate_interval]))",
+              "legendFormat": "TX {{container_label_com_docker_compose_service}} / {{interface}}",
+              "refId": "B"
+            }
+          ],
+          "title": "Tarpit container network RX/TX",
+          "type": "timeseries"
+        }
+      ],
+      "title": "Defender Cost",
+      "type": "row"
+    }
+  ],
+  "preload": false,
+  "refresh": "30s",
+  "schemaVersion": 41,
+  "tags": [
+    "metrics",
+    "primary"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "utc",
+  "title": "EventHorizon Metrics",
+  "uid": "eh-metric-mvp",
+  "version": 6,
+  "weekStart": ""
+}

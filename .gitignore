@@ -1,0 +1,15 @@
+bin/
+logs/
+validation-output/
+deploy/vps-field.env
+otel-output/
+*.sqlite
+*.sqlite3
+*.db
+zmap_*.csv
+masscan_*.txt
+masscan_*.json
+masscan_*.xml
+scanner-output/
+__pycache__/
+*.py[cod]

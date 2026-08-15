@@ -1,0 +1,98 @@
+x-rotated-local-logs: &rotated-local-logs
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-process-healthcheck: &process-healthcheck
+  test: ["CMD-SHELL", "kill -0 1"]
+  interval: 30s
+  timeout: 5s
+  retries: 3
+  start_period: 20s
+
+x-tarpit-field-limits: &tarpit-field-limits
+  restart: unless-stopped
+  cpus: "${FIELD_TARPIT_CPU_LIMIT:-0.50}"
+  mem_limit: "${FIELD_TARPIT_MEMORY_LIMIT:-0}"
+  pids_limit: 512
+  healthcheck: *process-healthcheck
+  logging:
+    driver: none
+
+services:
+  prometheus-exporter:
+    restart: unless-stopped
+    ports: !override
+      - "127.0.0.1:9101:9101"
+    healthcheck: *process-healthcheck
+    logging: *rotated-local-logs
+    labels:
+      org.eventhorizon.field.role: monitoring
+
+  telnet_pit:
+    <<: *tarpit-field-limits
+    ports: !override
+      - "0.0.0.0:${TELNET_PORT:-23}:${TELNET_PORT:-23}/tcp"
+    environment:
+      EVENTHORIZON_SESSION_LOG: /dev/null
+    labels:
+      org.eventhorizon.field.role: tarpit
+      org.eventhorizon.field.protocol: telnet
+
+  mqtt_pit:
+    <<: *tarpit-field-limits
+    ports: !override
+      - "0.0.0.0:${MQTT_PORT:-1883}:${MQTT_PORT:-1883}/tcp"
+    environment:
+      EVENTHORIZON_SESSION_LOG: /dev/null
+    labels:
+      org.eventhorizon.field.role: tarpit
+      org.eventhorizon.field.protocol: mqtt
+
+  coap_pit:
+    <<: *tarpit-field-limits
+    ports: !override
+      - "0.0.0.0:${COAP_PORT:-5683}:${COAP_PORT:-5683}/udp"
+    environment:
+      EVENTHORIZON_SESSION_LOG: /dev/null
+    labels:
+      org.eventhorizon.field.role: tarpit
+      org.eventhorizon.field.protocol: coap
+
+  upnp_pit:
+    <<: *tarpit-field-limits
+    ports: !override
+      - "0.0.0.0:${UPNP_SSDP_PORT:-1900}:${UPNP_SSDP_PORT:-1900}/udp"
+      - "0.0.0.0:${UPNP_HTTP_PORT:-8080}:${UPNP_HTTP_PORT:-8080}/tcp"
+    environment:
+      EVENTHORIZON_SESSION_LOG: /dev/null
+    labels:
+      org.eventhorizon.field.role: tarpit
+      org.eventhorizon.field.protocol: upnp
+
+  endlessh:
+    <<: *tarpit-field-limits
+    ports: !override
+      - "0.0.0.0:${SSH_PORT:-22}:${SSH_PORT:-22}/tcp"
+    labels:
+      org.eventhorizon.field.role: tarpit
+      org.eventhorizon.field.protocol: ssh
+
+  prometheus:
+    restart: unless-stopped
+    ports: !override
+      - "127.0.0.1:9090:9090"
+    healthcheck: *process-healthcheck
+    logging: *rotated-local-logs
+    labels:
+      org.eventhorizon.field.role: monitoring
+
+  grafana:
+    restart: unless-stopped
+    ports: !override
+      - "127.0.0.1:3000:3000"
+    healthcheck: *process-healthcheck
+    logging: *rotated-local-logs
+    labels:
+      org.eventhorizon.field.role: monitoring

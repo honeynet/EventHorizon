@@ -25,7 +25,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <syslog.h>
-#include "/structs.h"
+#include "metric_events.h"
 
 #define SERVER_ID "SSH"
 #define ENDLESSH_VERSION           1.1
@@ -166,7 +166,8 @@ client_new(int fd, long long send_next)
 }
 
 static void
-client_destroy(struct client *client)
+client_destroy(struct client *client,
+        enum metric_ssh_observation_end_reason observation_end_reason)
 {
     logmsg(log_debug, "close(%d)", client->fd);
     long long dt = epochms() - client->connect_time;
@@ -182,7 +183,9 @@ client_destroy(struct client *client)
     snprintf(msg, sizeof(msg), "%s disconnect %s %lld\n",
         SERVER_ID, client->ipaddr, dt);
     printf("%s", msg);
-    sendMetric(msg);
+
+    metric_event_ssh_tracked_client_finalized(observation_end_reason,
+            dt < 0 ? 0 : (uint64_t)dt);
 
     close(client->fd);
     free(client);
@@ -244,7 +247,7 @@ fifo_destroy(struct fifo *q)
     while (c) {
         struct client *dead = c;
         c = c->next;
-        client_destroy(dead);
+        client_destroy(dead, METRIC_SSH_OBSERVATION_END_SERVER_SHUTDOWN);
     }
     q->head = q->tail = 0;
     q->length = 0;
@@ -622,7 +625,7 @@ sendline(struct client *client, int max_line_length, unsigned long *rng)
             } else if (errno == EAGAIN || errno == EWOULDBLOCK) {
                 return client; /* don't care */
             } else {
-                client_destroy(client);
+                client_destroy(client, METRIC_SSH_OBSERVATION_END_WRITE_FAILED);
                 return 0;
             }
         } else {
@@ -640,6 +643,8 @@ main(int argc, char **argv)
     logmsg = logstdio;
     struct config config = CONFIG_DEFAULT;
     const char *config_file = DEFAULT_CONFIG_FILE;
+
+    metric_event_emitter_init(getenv("EVENTHORIZON_METRIC_SOCKET"));
 
 #if defined(__OpenBSD__)
     unveil(config_file, "r"); /* return ignored as the file may not exist */
@@ -843,7 +848,7 @@ main(int argc, char **argv)
                     snprintf(msg, sizeof(msg), "%s connect %s\n",
                         SERVER_ID, client->ipaddr);
                     printf("%s", msg);
-                    sendMetric(msg);
+                    metric_event_ssh_connection_accepted();
                 }
             }
         }
