@@ -686,7 +686,7 @@ func TestMetricEventMetricSurfaceIsFrozen(t *testing.T) {
 		},
 		"eventhorizon_exporter_malformed_messages_total": {
 			metricType: "COUNTER",
-			help:       "Total malformed, unsupported, or replayed metric datagrams rejected by the EventHorizon exporter.",
+			help:       "Total malformed or unsupported metric datagrams observed and rejected by the EventHorizon exporter.",
 			series:     6,
 		},
 		"eventhorizon_bytes_received_total": {

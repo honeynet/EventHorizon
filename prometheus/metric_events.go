@@ -312,7 +312,7 @@ func newMetricEventMetrics(registerer prometheus.Registerer) *metricEventMetrics
 		}, []string{"server"}),
 		exporterMalformedMessages: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "eventhorizon_exporter_malformed_messages_total",
-			Help: "Total malformed, unsupported, or replayed metric datagrams rejected by the EventHorizon exporter.",
+			Help: "Total malformed or unsupported metric datagrams observed and rejected by the EventHorizon exporter.",
 		}, []string{"reason"}),
 		bytesReceived: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "eventhorizon_bytes_received_total",
