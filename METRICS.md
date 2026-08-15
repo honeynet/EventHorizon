@@ -1,95 +1,80 @@
-# Metric Catalog
+# Metrics and Measurement Contract
 
-This catalog is the authority for the metric surface EventHorizon exposes: family names, `HELP` and `TYPE` text, labels, buckets, and observation boundaries.
+This document describes the supported EventHorizon Prometheus surface: metric families, types, labels, histogram buckets, producer events, and observation boundaries.
 
-Metrics reach the exporter as bounded JSON events: one event per observation, at most 512 bytes, with fixed fields and fixed label values, sent as a single datagram over the shared Unix socket. The bound is deliberate to keep a hostile client from creating unlimited metric labels.
+Producers emit bounded JSON events through the shared Unix datagram socket. Each event is one UTF-8 JSON object, at most 512 bytes, with fixed fields and fixed label values. Attacker-controlled values never become metric labels.
 
-## Reading guide
+## Observation units and interpretation
 
-- **Metric family:** one group of Prometheus measurements sharing a name.
-- **Observation unit:** the thing being measured, such as a Telnet connection or a CoAP request exchange. Different protocols use different units on purpose.
-- **Server-side boundary:** the point where EventHorizon observed something on its own side. It does not mean the client received anything.
-- **Bounded telemetry:** metric events with fixed fields and fixed label values, so a hostile client cannot create unlimited metric labels.
+EventHorizon defines observation units specific to each protocol instead of treating every interaction as a generic session:
 
-## What this evidence does and does not prove
+| Protocol | Observation unit | Important limitation |
+| --- | --- | --- |
+| Telnet | One tracked session per accepted TCP connection | Not a login, command, or negotiation session |
+| MQTT | One Network Connection per accepted TCP connection | Not a persistent MQTT Session or unique client |
+| CoAP | A request exchange and, separately, a Confirmable response reliability exchange | Not a session or connected client |
+| UPnP | An SSDP discovery exchange and, separately, an HTTP device-description response | Discovery is not correlated with a later description request |
+| SSH | One Endlessh tracked-client observation | Not peer-disconnect time because Endlessh does not read client sockets |
 
-These metrics provide evidence for evaluating tarpit behaviour and operational efficiency. They do **not** independently prove attacker intent, client receipt, fingerprint resistance, or overall deception effectiveness.
 
-Timing families measure server-side boundaries, not round-trip latency. A successful write only proves that EventHorizon handed complete bytes to the local transport.
+<!-- Shared interpretation rules:
 
-## Scope and vocabulary
+- Server-side send boundaries prove only that EventHorizon handed bytes to the local transport. They do not prove client receipt, parsing, or application delivery.
+- Duration histograms contain finalized observations only. Open work has no duration observation until it reaches a terminal boundary.
+- These metrics do not independently prove attacker intent, counter-fingerprinting success, or deception effectiveness. -->
 
-The implementation deliberately uses different observation units where the protocols differ:
-
-| Protocol | Observation unit | Explicitly not used |
-|---|---|---|
-| Telnet | One tracked Telnet session per accepted TCP connection | Separate login, command, or negotiation sessions |
-| MQTT | One tracked MQTT Network Connection per accepted TCP connection | Persistent MQTT Session or unique client |
-| CoAP | Requests that share the same Token; Separate exchanges that use Message IDs to make sure Confirmable (CON) responses arrive reliably | Generic session, connected client, or interaction depth |
-| UPnP | Separate SSDP discovery exchanges; Separate HTTP exchanges that describe the device | A general session or the full path from discovery to device description |
-
-Server-side sent boundaries prove only that EventHorizon successfully handed the complete bytes to the local transport. They do not prove client receipt, parsing, application delivery, or fingerprint resistance.
-
-## Implemented pipeline
+## Measurement path
 
 ```mermaid
 flowchart LR
     P["Telnet / MQTT / CoAP / UPnP / SSH producer"]
     E["One typed JSON event<br/>one Unix datagram<br/>maximum 512 bytes"]
     V["Strict exporter decoding<br/>closed schema and enums<br/>exact integer parsing"]
-    M["One mutation mutex<br/>complete mutation or rejection"]
+    M["Complete metric mutation or rejection"]
     X["Prometheus exposition"]
 
     P --> E --> V --> M --> X
 ```
 
-The supported runtime has these properties:
+- Five producers use the 24 typed event wrappers in `shared/metric_events.c`.
+- Producer and exporter both enforce the 512-byte limit.
+- Duplicate keys, unknown fields, invalid enums, invalid numeric forms, and incompatible protocol/event pairs are rejected before metric mutation.
+- Each accepted event applies as one aggregate mutation under the exporter mutex.
+- Active gauges are producer-owned absolute observations. A Prometheus scrape is not a transaction across different collectors, so reconciliation requires settled boundary scrapes.
 
-- all five producers use the 24 typed event wrappers in `shared/metric_events.c`
-- the exporter accepts exactly one UTF-8 JSON object per Unix datagram
-- both producer and exporter enforce the 512-byte ceiling
-- duplicate keys, unknown fields, invalid enums, invalid numeric forms, and incompatible protocol/event pairs are rejected before business mutation
-- every accepted event applies through one exporter mutation mutex
-- active gauges are producer-owned absolute observations
-- the legacy text parser, legacy metric emitters, accepted-message counter, high-cardinality legacy families, and aliases are removed from the supported path
-- Endlessh/SSH shares the metric socket and emits only the two boundaries EventHorizon can observe for it (see "SSH boundaries")
+## Metric families
 
-Prometheus collectors for different metric families are collected separately (they do not wait for each other). A lock (mutex) makes sure that two incoming events cannot mix their changes together. However, this lock does not guarantee that a scrape will see a perfect, consistent picture across all metric families at the exact same moment. Because of that, the system waits until the event’s changes are fully finished, then takes a clean “settled” scrape of the boundaries before doing the reconciliation.
+| Family | Type | Explicit labels | Meaning |
+| --- | --- | --- | --- |
+| `total_connects` | counter | `server` | Accepted Telnet, MQTT, and SSH TCP connections |
+| `current_connected_clients` | gauge | `server` | Current accepted Telnet and MQTT connections |
+| `eventhorizon_protocol_actions_total` | counter | `protocol`, `action` | Protocol actions crossing defined server-side boundaries |
+| `eventhorizon_read_errors_total` | counter | `protocol`, `reason` | Primary unrecoverable Telnet and MQTT read failures |
+| `eventhorizon_write_errors_total` | counter | `protocol`, `reason` | Write failures crossing defined reliability boundaries |
+| `eventhorizon_exporter_malformed_messages_total` | counter | `reason` | Metric datagrams rejected before business mutation |
+| `eventhorizon_bytes_received_total` | counter | `protocol` | Positive Telnet and MQTT client-facing read bytes |
+| `eventhorizon_bytes_sent_total` | counter | `protocol` | Positive Telnet and MQTT client-facing write bytes |
+| `eventhorizon_completed_sessions_total` | counter | `protocol`, `disconnect_reason` | Finalized tracked Telnet sessions |
+| `eventhorizon_session_duration_ms` | histogram | `protocol` | Accepted-to-finalized Telnet session duration |
+| `eventhorizon_session_interaction_depth_total` | counter | `protocol`, `depth_level` | Final Telnet interaction-depth classification |
+| `eventhorizon_telnet_first_write_delay_ms` | histogram | none | Accepted connection to first positive Telnet server write |
+| `eventhorizon_telnet_inter_write_interval_ms` | histogram | none | Time between consecutive positive Telnet server writes |
+| `eventhorizon_mqtt_network_connection_finalizations_total` | counter | `finalization_reason` | Finalized MQTT Network Connections |
+| `eventhorizon_mqtt_network_connection_duration_ms` | histogram | none | Accepted-to-finalized MQTT Network Connection duration |
+| `eventhorizon_mqtt_network_connection_interaction_depth_total` | counter | `depth_level` | Final MQTT interaction-depth classification |
+| `eventhorizon_mqtt_connect_to_connack_duration_ms` | histogram | none | Accepted supported CONNECT to complete CONNACK transmission |
+| `eventhorizon_coap_active_request_exchanges` | gauge | none | CoAP GET requests awaiting response or termination |
+| `eventhorizon_coap_request_exchange_duration_ms` | histogram | `outcome` | Accepted CoAP GET to response or termination |
+| `eventhorizon_coap_active_con_response_exchanges` | gauge | none | Confirmable responses awaiting ACK, RST, or retry exhaustion |
+| `eventhorizon_coap_con_response_exchange_duration_ms` | histogram | `outcome` | First Confirmable response send to its reliability outcome |
+| `eventhorizon_upnp_active_description_responses` | gauge | none | Started UPnP descriptions not yet completed or terminated |
+| `eventhorizon_upnp_description_stream_duration_ms` | histogram | `outcome` | First positive description write to completion or termination |
+| `eventhorizon_ssh_tracked_client_lifetime_ms` | histogram | `observation_end_reason` | Accepted SSH connection to removal from Endlessh tracking |
 
-## Metric-family summary
+No family uses an identity, address, endpoint, Client Identifier, URI, path, LOCATION, topic, Topic Filter, Token, Message ID, Packet Identifier, credential, payload, content, errno, error text, retry count, QoS, phase, configuration, experiment, commit, or fingerprint label.
 
-Histogram sample counts include every bucket (including `+Inf`), `_sum`, and `_count` for every initialized outcome population.
-
-| Family | Type | Exact explicit labels | Initialized series or samples | Disposition |
-|---|---|---|---:|---|
-| `eventhorizon_protocol_actions_total` | counter | `{protocol,action}` | 26 series | changed |
-| `eventhorizon_read_errors_total` | counter | `{protocol,reason}` | 8 series | changed |
-| `eventhorizon_write_errors_total` | counter | `{protocol,reason}` | 16 series | changed |
-| `eventhorizon_exporter_malformed_messages_total` | counter | `{reason}` | 6 series | changed |
-| `eventhorizon_bytes_received_total` | counter | `{protocol}` | 2 series | changed |
-| `eventhorizon_bytes_sent_total` | counter | `{protocol}` | 2 series | changed |
-| `total_connects` | counter | `{server}` | 3 series | changed |
-| `current_connected_clients` | gauge | `{server}` | 2 series | changed |
-| `eventhorizon_completed_sessions_total` | counter | `{protocol="telnet",disconnect_reason}` | 5 series | changed |
-| `eventhorizon_session_duration_ms` | histogram | `{protocol="telnet"}` | 14 samples | changed |
-| `eventhorizon_session_interaction_depth_total` | counter | `{protocol="telnet",depth_level}` | 4 series | changed |
-| `eventhorizon_telnet_first_write_delay_ms` | histogram | none | 17 samples | added |
-| `eventhorizon_telnet_inter_write_interval_ms` | histogram | none | 17 samples | added |
-| `eventhorizon_mqtt_network_connection_finalizations_total` | counter | `{finalization_reason}` | 10 series | added |
-| `eventhorizon_mqtt_network_connection_duration_ms` | histogram | none | 22 samples | added |
-| `eventhorizon_mqtt_network_connection_interaction_depth_total` | counter | `{depth_level}` | 4 series | added |
-| `eventhorizon_mqtt_connect_to_connack_duration_ms` | histogram | none | 22 samples | added |
-| `eventhorizon_coap_active_request_exchanges` | gauge | none | 1 series | added |
-| `eventhorizon_coap_request_exchange_duration_ms` | histogram | `{outcome}` | 42 samples | added |
-| `eventhorizon_coap_active_con_response_exchanges` | gauge | none | 1 series | added |
-| `eventhorizon_coap_con_response_exchange_duration_ms` | histogram | `{outcome}` | 60 samples | added |
-| `eventhorizon_upnp_active_description_responses` | gauge | none | 1 series | added |
-| `eventhorizon_upnp_description_stream_duration_ms` | histogram | `{outcome}` | 42 samples | added |
-| `eventhorizon_ssh_tracked_client_lifetime_ms` | histogram | `{observation_end_reason}` | 34 samples | added |
-
-No metric has an identity, address, endpoint, Client Identifier, URI, path, LOCATION, topic, Topic Filter, Token, Message ID, Packet Identifier, credential, payload, content, errno, error-text, retry-count, QoS, phase, configuration, experiment, commit, or fingerprint label.
-
-## Exact HELP and TYPE contracts
+<details>
+<summary>Exact Prometheus HELP and TYPE exposition</summary>
 
 ```text
 # HELP total_connects Total accepted TCP connections tracked by the EventHorizon Telnet and MQTT tarpits and by the integrated Endlessh SSH tarpit.
@@ -103,7 +88,7 @@ No metric has an identity, address, endpoint, Client Identifier, URI, path, LOCA
 # TYPE eventhorizon_read_errors_total counter
 # HELP eventhorizon_write_errors_total Total write-side I/O failures crossing frozen EventHorizon reliability boundaries.
 # TYPE eventhorizon_write_errors_total counter
-# HELP eventhorizon_exporter_malformed_messages_total Total malformed, unsupported, or replayed metric datagrams rejected by the EventHorizon exporter.
+# HELP eventhorizon_exporter_malformed_messages_total Total malformed or unsupported metric datagrams observed and rejected by the EventHorizon exporter.
 # TYPE eventhorizon_exporter_malformed_messages_total counter
 # HELP eventhorizon_bytes_received_total Positive bytes returned by Telnet and MQTT client-facing reads; includes protocol framing and incomplete input, and excludes EOF, failed, retryable, or zero-byte I/O and internal telemetry.
 # TYPE eventhorizon_bytes_received_total counter
@@ -148,32 +133,32 @@ No metric has an identity, address, endpoint, Client Identifier, URI, path, LOCA
 # TYPE eventhorizon_ssh_tracked_client_lifetime_ms histogram
 ```
 
-## Closed label schemas
+</details>
 
-### Protocol actions
+## Labels and histogram buckets
 
-`eventhorizon_protocol_actions_total{protocol,action}` initializes exactly these compatible pairs:
+### Closed label schemas
+
+`eventhorizon_protocol_actions_total{protocol,action}` initializes only these compatible pairs:
 
 | `protocol` | Allowed `action` values |
-|---|---|
+| --- | --- |
 | `upnp` | `ssdp_msearch_received`, `ssdp_discovery_response_sent`, `description_get_received`, `description_response_started`, `description_response_completed`, `description_response_terminated` |
 | `coap` | `get_request_received`, `get_response_sent`, `get_request_terminated`, `con_response_sent`, `con_response_retransmitted`, `con_response_ack_received`, `con_response_rst_received`, `con_response_retry_exhausted` |
 | `mqtt` | `connect_accepted`, `connack_sent`, `publish_received`, `subscribe_received`, `unsubscribe_received`, `suback_sent`, `unsuback_sent`, `puback_sent`, `pubrec_sent`, `pubrel_received`, `pubcomp_sent`, `subscription_publish_sent` |
 
-Telnet has no action series. Adding up the entire metric family just combines numbers from unrelated protocol boundaries, so the total has no real meaning for Telnet.
-
-### Reliability, lifecycle, and outcomes
+Telnet has no action series. Summing this family across protocols combines unrelated boundaries and has no useful interpretation.
 
 | Family | Exact label values |
-|---|---|
-| `eventhorizon_read_errors_total` | `protocol="telnet"`/`"mqtt"`, `reason="timeout"`/`"reset"`/`"closed"`/`"other"` |
-| `eventhorizon_write_errors_total` | `protocol="upnp"`/`"coap"`/`"telnet"`/`"mqtt"`, same four reasons |
-| `eventhorizon_exporter_malformed_messages_total` | `reason="empty_message"`/`"missing_fields"`/`"unknown_format"`|"unknown_server"|"invalid_number"|"unsupported_event"` |
+| --- | --- |
+| `eventhorizon_read_errors_total` | `protocol="telnet"`/`"mqtt"`; `reason="timeout"`/`"reset"`/`"closed"`/`"other"` |
+| `eventhorizon_write_errors_total` | `protocol="upnp"`/`"coap"`/`"telnet"`/`"mqtt"`; the same four reasons |
+| `eventhorizon_exporter_malformed_messages_total` | `reason="empty_message"`/`"missing_fields"`/`"unknown_format"`/`"unknown_server"`/`"invalid_number"`/`"unsupported_event"` |
 | `eventhorizon_bytes_received_total`, `eventhorizon_bytes_sent_total` | `protocol="telnet"`/`"mqtt"` |
 | `total_connects` | `server="Telnet"`/`"MQTT"`/`"SSH"` |
-| `current_connected_clients` | `server="Telnet"`/`"MQTT"` (SSH owns no active gauge) |
-| `eventhorizon_completed_sessions_total` | `protocol="telnet"`, `disconnect_reason="peer_closed"`/`"read_error"`/`"write_error"`/`"server_shutdown"`/`"bounded_policy"` |
-| `eventhorizon_session_interaction_depth_total` | `protocol="telnet"`, `depth_level="0"`/`"1"`/`"2"`/`"3"` |
+| `current_connected_clients` | `server="Telnet"`/`"MQTT"` |
+| `eventhorizon_completed_sessions_total` | `protocol="telnet"`; `disconnect_reason="peer_closed"`/`"read_error"`/`"write_error"`/`"server_shutdown"`/`"bounded_policy"` |
+| `eventhorizon_session_interaction_depth_total` | `protocol="telnet"`; `depth_level="0"`/`"1"`/`"2"`/`"3"` |
 | `eventhorizon_mqtt_network_connection_finalizations_total` | `finalization_reason="peer_closed"`/`"disconnect_received"`/`"connect_refused"`/`"operation_refused"`/`"protocol_error"`/`"keep_alive_timeout"`/`"read_error"`/`"write_error"`/`"server_shutdown"`/`"bounded_policy"` |
 | `eventhorizon_mqtt_network_connection_interaction_depth_total` | `depth_level="0"`/`"1"`/`"2"`/`"3"` |
 | `eventhorizon_coap_request_exchange_duration_ms` | `outcome="response_sent"`/`"terminated"` |
@@ -181,19 +166,18 @@ Telnet has no action series. Adding up the entire metric family just combines nu
 | `eventhorizon_upnp_description_stream_duration_ms` | `outcome="completed"`/`"terminated"` |
 | `eventhorizon_ssh_tracked_client_lifetime_ms` | `observation_end_reason="write_failed"`/`"server_shutdown"` |
 
-The producer maps actual socket failures into the four I/O reasons: 
-- `closed` means bounded closed-socket conditions such as broken pipe, not connected, or shutdown. 
-- The exporter validates only the enum and never interprets errno. 
-- TCP EOF is a clean peer finalization, not an I/O error. 
-- A short positive UDP send is write reason `other`
-A partial TCP write that still sent some bytes is not automatically counted as an error, it is only recorded as bytes and timing.
+The producer maps socket failures to four bounded reasons:
+- `closed` covers conditions such as broken pipe, not connected, or shutdown
+- TCP EOF is a clean peer finalization, not an I/O error
+- A short positive UDP send is `other`
+- The exporter validates the enum and never exposes errno
 
-## Histogram buckets
+### Histogram buckets
 
-All bucket boundaries are milliseconds. Prometheus adds `+Inf`, `_sum`, and `_count` to the listed finite buckets.
+All boundaries are milliseconds. Prometheus adds `+Inf`, `_sum`, and `_count` to the finite buckets below.
 
 | Histogram | Exact finite buckets |
-|---|---|
+| --- | --- |
 | `eventhorizon_session_duration_ms` | `10 50 100 250 500 1000 2500 5000 10000 30000 60000` |
 | `eventhorizon_telnet_first_write_delay_ms` | `10 25 50 75 100 125 150 200 250 500 1000 2500 5000 10000` |
 | `eventhorizon_telnet_inter_write_interval_ms` | `10 25 50 75 100 125 150 200 250 500 1000 2500 5000 10000` |
@@ -204,104 +188,100 @@ All bucket boundaries are milliseconds. Prometheus adds `+Inf`, `_sum`, and `_co
 | `eventhorizon_upnp_description_stream_duration_ms` | `1 2 5 10 25 50 100 250 500 1000 2500 5000 10000 15000 20000 25000 30000 60000` |
 | `eventhorizon_ssh_tracked_client_lifetime_ms` | `1000 5000 10000 20000 30000 60000 120000 300000 600000 1800000 3600000 21600000 86400000 604800000` |
 
-Histogram sums are cumulative observations, not configured delays. An active exchange has no duration observation until it reaches a frozen terminal boundary.
+<!-- Histogram sums are observed durations, not configured delays. -->
 
-## Producer event catalog
+## Producer event contract
 
-Every event also requires exactly `v=1`, `protocol`, and `event`. Every field listed below is required; any unlisted field is rejected. Integer fields are decoded as integers rather than through `float64`.
+Every event requires exactly `v=1`, `protocol`, `event`, and the fields listed for its event type. Unlisted fields are rejected, and integer fields are decoded as integers, not `float64`.
+
+<details>
+<summary>24 typed producer events</summary>
 
 ### Telnet: 5 events
 
-| Event | Exact event fields | Business mutation |
-|---|---|---|
-| `connection_accepted` | `active_count_after` | Increment Telnet `total_connects`, set absolute active gauge |
-| `connection_finalized` | `finalization_reason`, `duration_ms`, `depth_level`, `active_count_after`, `io_reason` | Update finalization, session duration, depth, active gauge, and applicable primary I/O error |
+| Event | Required event fields | Metric effect |
+| --- | --- | --- |
+| `connection_accepted` | `active_count_after` | Increment connects and set the absolute active gauge |
+| `connection_finalized` | `finalization_reason`, `duration_ms`, `depth_level`, `active_count_after`, `io_reason` | Update finalization, duration, depth, active gauge, and applicable primary I/O error |
 | `positive_read` | `bytes` | Add positive received bytes |
-| `first_positive_write` | `duration_ms`, `bytes` | Add positive sent bytes and observe first-write delay |
-| `subsequent_positive_write` | `duration_ms`, `bytes` | Add positive sent bytes and observe inter-write interval |
+| `first_positive_write` | `duration_ms`, `bytes` | Add sent bytes and observe first-write delay |
+| `subsequent_positive_write` | `duration_ms`, `bytes` | Add sent bytes and observe one inter-write interval |
 
 ### MQTT: 7 events
 
-| Event | Exact event fields | Business mutation |
-|---|---|---|
-| `connection_accepted` | `active_count_after` | Increment MQTT `total_connects`, set absolute active gauge |
-| `connection_finalized` | `finalization_reason`, `duration_ms`, `depth_level`, `active_count_after`, `io_reason` | Update finalization, Network Connection duration, depth, gauge, and applicable primary I/O error |
+| Event | Required event fields | Metric effect |
+| --- | --- | --- |
+| `connection_accepted` | `active_count_after` | Increment connects and set the absolute active gauge |
+| `connection_finalized` | `finalization_reason`, `duration_ms`, `depth_level`, `active_count_after`, `io_reason` | Update finalization, duration, depth, gauge, and applicable primary I/O error |
 | `positive_read` | `bytes` | Add positive received bytes |
 | `positive_write` | `bytes` | Add positive sent bytes, including partial writes |
-| `protocol_action` | `action` | Increment one of the 11 compatible non-CONNACK actions |
-| `connack_sent` | `duration_ms` | Increment `connack_sent`, observe CONNECT-to-CONNACK duration |
+| `protocol_action` | `action` | Increment one compatible non-CONNACK action |
+| `connack_sent` | `duration_ms` | Increment `connack_sent` and observe CONNECT-to-CONNACK duration |
 | `secondary_write_error` | `io_reason` | Increment only the MQTT write-error counter |
 
 ### CoAP: 6 events
 
-| Event | Exact event fields | Business mutation |
-|---|---|---|
-| `request_received` | `request_active_count_after` | Increment `get_request_received`, set request gauge |
-| `request_finalized` | `outcome`, `duration_ms`, `request_active_count_after` | Increment request terminal action, observe request duration, set gauge |
-| `con_response_sent` | `request_duration_ms`, `request_active_count_after`, `con_active_count_after` | Increment `get_response_sent` and `con_response_sent`, observe request duration, set both gauges |
-| `con_response_retransmitted` | none | Increment only `con_response_retransmitted` |
-| `con_response_finalized` | `outcome`, `duration_ms`, `con_active_count_after` | Increment CON terminal action, observe CON duration, set gauge |
+| Event | Required event fields | Metric effect |
+| --- | --- | --- |
+| `request_received` | `request_active_count_after` | Increment request received and set the request gauge |
+| `request_finalized` | `outcome`, `duration_ms`, `request_active_count_after` | Increment the terminal action, observe duration, and set the gauge |
+| `con_response_sent` | `request_duration_ms`, `request_active_count_after`, `con_active_count_after` | Finalize the request exchange, start CON reliability, and set both gauges |
+| `con_response_retransmitted` | none | Increment only the retransmission action |
+| `con_response_finalized` | `outcome`, `duration_ms`, `con_active_count_after` | Increment the CON terminal action, observe duration, and set the gauge |
 | `write_error` | `io_reason` | Increment only the CoAP write-error counter |
 
 ### UPnP: 4 events
 
-| Event | Exact event fields | Business mutation |
-|---|---|---|
-| `protocol_action` | `action` | Increment valid M-SEARCH, discovery-response, or description-GET action |
-| `description_response_started` | `active_count_after` | Increment response-started action; set absolute active gauge |
-| `description_response_finalized` | `outcome`, `duration_ms`, `active_count_after` | Increment completed/terminated action, observe duration, set gauge |
+| Event | Required event fields | Metric effect |
+| --- | --- | --- |
+| `protocol_action` | `action` | Increment one compatible discovery or description action |
+| `description_response_started` | `active_count_after` | Increment response started and set the absolute active gauge |
+| `description_response_finalized` | `outcome`, `duration_ms`, `active_count_after` | Increment the terminal action, observe duration, and set the gauge |
 | `write_error` | `io_reason` | Increment only the UPnP write-error counter |
 
 ### SSH (Endlessh): 2 events
 
-| Event | Exact event fields | Business mutation |
-|---|---|---|
-| `connection_accepted` | none | Increment SSH `total_connects`, no gauge is set |
-| `tracked_client_finalized` | `observation_end_reason`, `lifetime_ms` | Observe tracked-client lifetime under the given end reason |
+| Event | Required event fields | Metric effect |
+| --- | --- | --- |
+| `connection_accepted` | none | Increment SSH connects; no active gauge |
+| `tracked_client_finalized` | `observation_end_reason`, `lifetime_ms` | Observe tracked-client lifetime under the end reason |
 
-`active_count_after` and the CoAP active-count fields are bounded `uint32` absolute producer state. Positive byte values are `1..9007199254740991`. General durations are `0..9007199254740991`; completed UPnP duration is bounded to `0..30000`. Depth is the integer `0..3`.
+<!-- Active-count fields are bounded `uint32` absolute producer state. Positive bytes are `1..9007199254740991`. General durations are `0..9007199254740991`; completed UPnP duration is bounded to `0..30000`. Depth is `0..3`. -->
 
-The exporter performs schema and aggregate-mutation validation. It cannot validate connection-local MQTT sequencing or request-local CoAP correlation because Client Identifiers, Packet Identifiers, Tokens, Message IDs, and connection identities are intentionally absent from telemetry. Those remain producer invariants.
+</details>
 
-## Important success boundaries
+<!-- The exporter validates event schema and aggregate mutation. Connection-local MQTT sequencing and request-local CoAP correlation remain producer invariants because identifiers are intentionally absent from telemetry. -->
 
-- Telnet and MQTT positive partial TCP writes add actual byte evidence.
-- The first positive Telnet write observes first-write timing; every later positive write observes one inter-write interval.
-- A partial MQTT Control Packet write emits no completed-packet action.
-- A CoAP sent or retransmitted action requires `sendto()` to return the exact encoded datagram length.
-- A short positive UDP send emits no sent action and is a write error with reason `other`.
-- `con_response_sent` atomically finalizes the CoAP request exchange and starts the independent outbound CON reliability exchange.
-- The first positive UPnP response write starts the description response, including a partial positive write.
-- UPnP completion requires complete HTTP/1.1 headers and exactly the declared `Content-Length` bytes of a valid `Content-Type: text/xml` description to be written within 30 seconds.
-- UPnP completion versus termination is selected using the full monotonic timestamp before elapsed milliseconds are truncated. Encoded `30000` is valid for either boundary case.
+## Protocol boundaries
+
+| Protocol | Start or success boundary | Finalization or interpretation boundary |
+| --- | --- | --- |
+| Telnet | A successful `accept()` starts a tracked session. Positive read and write return values add byte evidence. | One terminal reason finalizes duration and depth. The first positive write records first-write timing; later positive writes record inter-write timing. |
+| MQTT | A successful `accept()` starts one Network Connection. A CONNACK action requires complete transmission. | One bounded reason finalizes Network Connection duration and depth. A partial Control Packet write emits no completed-packet action. |
+| CoAP | An accepted GET starts a request exchange. A sent or retransmitted action requires `sendto()` to return the exact datagram length. | Sending the first CON response finalizes the request exchange and starts an independent reliability exchange ending in ACK, RST, or retry exhaustion. |
+| UPnP | SSDP discovery actions are independent. The first positive description write starts a description response. | Completion requires full HTTP headers and exactly the declared XML body within 30 seconds; otherwise the started response terminates. |
+| SSH | A successful `accept()` starts an Endlessh tracked-client observation. | A non-retryable scheduled write failure removes the client, or server shutdown right-censors the observation. |
+
+Shared I/O rules:
+
+- Positive partial TCP writes count actual bytes, but do not automatically count a completed protocol action.
+- A short positive UDP send counts as write error `other` and no sent action.
 - Zero, interrupted, retryable, would-block, pending, and failed operations do not cross a success boundary.
+- A successful server write does not prove client receipt.
 
-## SSH boundaries
+### SSH interpretation
 
-SSH is the integrated Endlessh tarpit, not an EventHorizon protocol server. Its metric contract is narrower than the other four on purpose, because Endlessh observes less.
+- `observation_end_reason="write_failed"` means a scheduled write failed and Endlessh removed the tracked client. It does not identify the exact peer-disconnect time or necessarily its cause.
+- `observation_end_reason="server_shutdown"` is right-censored. The true tracked-client lifetime is at least the recorded value and remains unknown.
+- Endlessh does not read client sockets, so no SSH active gauge is exposed. SSH also has no interaction depth, protocol action, response timing, or byte family.
+- SSH tracked-client lifetime must not be compared directly with Telnet session duration, which finalizes on an observed read-side terminal boundary.
 
-- **Start boundary:** `accept()` successfully returns a client descriptor. This is exact, so `total_connects{server="SSH"}` is an exact accepted-connection boundary.
-- **Write-observed end boundary:** a scheduled Endlessh write returns a non-retryable failure and Endlessh removes the tracked client. This is recorded as `observation_end_reason="write_failed"`.
-- **Right-censored end boundary:** the server stops while the client is still tracked, recorded as `observation_end_reason="server_shutdown"`. The observation ended for a server-side reason, so the tracked-client lifetime is at least the recorded value and its true extent is unknown.
-- **Endlessh does not read client sockets**, so it does not directly observe peer EOF. It polls only its listening socket. A tracked client therefore remains tracked until some later scheduled write to it fails.
-- **`write_failed` does not identify the exact peer-disconnect time, and does not necessarily identify why the peer became unreachable.** It records only that a scheduled write eventually failed and the tracked client was removed. The configured write cadence (`SSH_DELAY`, default 10000 ms) influences when that failure is observed, and the relationship between peer-disconnect time and tracked-client removal time is neither fixed nor bounded to one write interval. Observed on this repository: a client that closed after roughly 3 seconds produced a tracked-client lifetime of 40031 ms at a 10000 ms cadence.
-- **Therefore observed lifetime is not equivalent to peer-disconnect time**, and must not be compared directly with `eventhorizon_session_duration_ms` (Telnet), which finalizes on an observed read-side terminal boundary.
+## Reconciliation
 
-Summary of the shipped contract:
+Reconciliation requires a complete, uninterrupted process epoch and settled baseline and final scrapes. Restart, reset, missing telemetry, missing scrapes, possible duplicate delivery, inconsistent absolute gauges, or a concurrent torn scrape makes the affected result `INCONCLUSIVE`.
 
-| | Meaning |
-|---|---|
-| `total_connects{server="SSH"}` | Exact accepted-connection boundary. |
-| `observation_end_reason="write_failed"` | Write-observed ending: a scheduled write failed and Endlessh removed the tracked client. This does not identify the exact peer-disconnect time or necessarily its cause. |
-| `observation_end_reason="server_shutdown"` | Right-censored observation: the server stopped while the client was still tracked. |
-
-SSH deliberately has no active gauge, no interaction depth, no protocol actions, no response timing, and no byte accounting. `current_connected_clients` carries no `server="SSH"` series.
-
-Endlessh additionally writes its original `SSH connect <ip>` and `SSH disconnect <ip> <ms>` lines to stdout. That format is retained verbatim as research evidence and is independent of this metric path.
-
-## Reconciliation contracts
-
-The following equations require a complete, uninterrupted process epoch and settled baseline/final scrapes. Restart, reset, missing telemetry, missing scrapes, possible duplicate delivery, inconsistent absolute gauges, or a torn concurrent scrape makes the affected result `INCONCLUSIVE`.
+<details>
+<summary>Reconciliation equations</summary>
 
 ```text
 delta(total_connects{server="Telnet"})
@@ -339,53 +319,32 @@ delta(eventhorizon_upnp_description_stream_duration_ms_count{outcome="terminated
 = delta(eventhorizon_protocol_actions_total{protocol="upnp",action="description_response_terminated"})
 ```
 
-No independent active-state reconciliation is available for SSH. Accepted connections minus finalized observations yields the number of clients Endlessh still tracks, but there is no producer-owned active gauge to reconcile that inferred value against, and it is deliberately not exposed as `current_connected_clients{server="SSH"}`.
+</details>
 
-For each histogram outcome, the `+Inf` bucket equals `_count`. Byte-counter deltas equal the sum of positive TCP read/write return values for that protocol. The malformed-family delta sum equals the number of rejected metric datagrams in a controlled no-reset fixture.
+SSH has no independent active-state reconciliation because it has no producer-owned active gauge. For each histogram population, the `+Inf` bucket equals `_count`. Byte-counter deltas equal positive TCP read or write return values. The malformed-family delta sum equals metric datagrams observed and rejected by the exporter.
 
-## What the catalog proves and does not prove
+## Interpretation limits
 
-| Evidence | What it proves | What it does not prove |
-|---|---|---|
-| TCP lifecycle | Accepted/finalized Telnet sessions and MQTT Network Connections | Unique clients, people, devices, logins, MQTT Sessions, or accepted CONNECT |
-| Protocol actions | Counts of exact frozen server-side action boundaries | Client receipt, parsing, action equality, engagement, or fingerprint resistance |
-| Active gauges | Latest producer-observed absolute active work | Complete history or recovery after exporter restart |
-| Histograms | Distribution of finalized monotonic server-side durations | Configured delay, round-trip time, active age, or client-perceived latency |
-| Application bytes | Positive Telnet/MQTT socket-return bytes | Complete messages, meaningful content, TCP/IP wire volume, or client receipt |
-| I/O errors | Bounded qualifying server-side socket failures | Client fault, packet loss, protocol failure rate, or telemetry completeness |
-| Malformed events | Invalid metric datagrams observed and rejected by the exporter | Valid-datagram delivery completeness, duplicate detection, or valid producer behavior |
-| SSH tracked-client lifetime | How long Endlessh kept a client in its tracked set, and whether the observation ended by a failed scheduled write or by server shutdown | Peer-disconnect time, the reason the peer became unreachable, a clean client disconnect, or values independent of the configured write cadence |
+| Evidence | What it establishes | What it does not establish |
+| --- | --- | --- |
+| TCP lifecycle | Accepted and finalized Telnet sessions and MQTT Network Connections | Unique clients, people, devices, logins, MQTT Sessions, or accepted CONNECT |
+| Protocol actions | Defined server-side action boundaries | Client receipt, parsing, engagement, or counter-fingerprinting success |
+| Active gauges | Latest producer-observed active work | Complete history or recovery after exporter restart |
+| Histograms | Finalized server-side duration distributions | Configured delay, round-trip time, active age, or client-perceived latency |
+| Application bytes | Positive Telnet and MQTT socket-return bytes | Complete messages, meaningful content, wire volume, or client receipt |
+| I/O errors | Bounded qualifying server-side socket outcomes | Client fault, packet loss, protocol failure rate, or telemetry completeness |
+| Malformed events | Invalid datagrams observed and rejected by the exporter | Valid-datagram delivery, duplicate detection, or valid producer behavior |
+| SSH tracked-client lifetime | Time retained in Endlessh tracking and the observed end reason | Peer-disconnect time, clean disconnect, cause, or values independent of write cadence |
 
-Container-runtime metrics remain separate defender-cost evidence. Session JSONL remains separate research evidence. Neither is reconstructed from this Prometheus catalog.
+Container runtime metrics remain separate optional defender-cost evidence. Session JSONL remains separate research evidence. Neither is reconstructed from this Prometheus contract.
 
-## Removed legacy surface
+## Validation
 
-The supported exporter does not expose these legacy families or aliases:
+| Layer | Coverage |
+| --- | --- |
+| Unit validation | Bounded C event helpers, strict Go decoding, rejection paths, metric metadata, labels, and buckets |
+| Cross-language integration | Five real C producers send Unix datagrams through the actual Go ingestion path into a Prometheus registry |
+| Runtime validation | Real protocol traffic crosses the expected boundary and changes the expected metric |
+| Dashboard and Compose | The dashboard checker covers all 24 families; the focused smoke test verifies exporter, Prometheus, Grafana, and one Telnet connection |
 
-- `eventhorizon_exporter_messages_total{status}`
-- `eventhorizon_session_starts_total{protocol}`
-- `total_trapped_time_ms` and `tarpitted_clients`
-- `telnet_pit_input{ip}`
-- `mqtt_pit_*` credential, topic, version, and aggregate counters
-- `upnp_M-Search_requests{ip}`
-- `upnp_non_M-Search_requests{ip}`
-- `upnp_other_http_requests{method,url}`
-- generic UPnP/CoAP lifecycle, connected-client, duration, or interaction-depth series
-- all old/new action-name aliases
-
-No accepted-message counter, metric-delivery percentage, exporter-derived active gauge, or telemetry-reliability percentage replaces them.
-
-## Validation evidence
-
-The implemented surface has passed both isolated tests and a real deployed stack validation.
-
-| Validation | Observed evidence | Result |
-|---|---|---|
-| Zero surface | Required bounded series initialized to zero, forbidden legacy-family search empty | PASS |
-| Telnet real wire | One accept/finalization, received `7` bytes, sent `8`, first write `100 ms`, two later writes, duration `401 ms`, depth `2`, no errors | PASS |
-| MQTT real wire | Supported CONNECT and complete four-byte CONNACK, `20` received bytes, `4` sent, disconnect finalization, depth `1`, no errors | PASS |
-| CoAP real wire | NON GET response `51450001a5d10a0aff4141414141`, request completed in `1001 ms`, no CON population or errors | PASS |
-| UPnP real wire | Valid SSDP exchange; HTTP/1.1 `text/xml`, exact 608-byte body, no Transfer-Encoding, completed duration `10000 ms`, no errors | PASS |
-| Isolated Go suite | Public Unix-socket ingestion plus producer integration tests: `ok prometheus 17.815s` | PASS |
-
-These observations only confirm the main MVP boundaries that were chosen as examples. They do not change missing or reset evidence into a `PASS`.
+<!-- The Compose smoke test is deliberately not an all-protocol runtime test. The real-producer integration suites provide deterministic coverage for all five producer paths. -->
