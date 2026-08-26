@@ -74,6 +74,7 @@ function startTelnet() {
     local maxNoClients=$3
     echo "Starting telnet_pit with port=$port, delay=$delay, max-no-clients=$maxNoClients"
 
+    echo "$$" > "$PID_DIR/telnet.pid"
     exec "$BIN_DIR/telnet_pit" "$port" "$delay" "$maxNoClients"
 }
 
@@ -87,6 +88,7 @@ function startUpnp() {
     local maxNoClients=$4
     echo "Starting upnp_pit with http-port=$httpPort ssdp-port=$ssdpPort delay=$delay max-no-clients=$maxNoClients"
 
+    echo "$$" > "$PID_DIR/upnp.pid"
     exec "$BIN_DIR/upnp_pit" "$httpPort" "$ssdpPort" "$delay" "$maxNoClients"
 }
 
@@ -101,6 +103,7 @@ function startMqtt() {
     local maxNoClients=$6
     echo "Starting mqtt_pit with port=$port maxEvents=$maxEvents epollTimeoutInterval=$epollTimeoutInterval pubrelInterval=$pubrelInterval maxPacketsPerClient=$maxPacketsPerClient maxNoClients=$maxNoClients"
     
+    echo "$$" > "$PID_DIR/mqtt.pid"
     exec "$BIN_DIR/mqtt_pit" "$port" "$maxEvents" "$epollTimeoutInterval" "$pubrelInterval" "$maxPacketsPerClient" "$maxNoClients"
 }
 
@@ -114,17 +117,72 @@ function startCoap() {
     local MAX_RETRANSMIT=$4
     local maxNoClients=$5
     echo "Starting coap_pit with port=$port, delay=$delay, ACK_TIMEOUT=$ACK_TIMEOUT, MAX_RETRANSMIT=$MAX_RETRANSMIT max-no-clients=$maxNoClients"
+
+    echo "$$" > "$PID_DIR/coap.pid"
     exec "$BIN_DIR/coap_pit" "$port" "$delay" "$ACK_TIMEOUT" "$MAX_RETRANSMIT" "$maxNoClients"
 }
 
 function stopServer() {
-    # TODO
-    :
+    local protocol=$1
+    if [ -z "$protocol" ]; then
+        echo "Error: Protocol name required for stop command."
+        showHelp
+        exit 1
+    fi
+
+    local target_bin="${protocol}_pit"
+    local pid_file="$PID_DIR/${protocol}.pid"
+    local pid=""
+
+    if [ -f "$pid_file" ]; then
+        pid=$(cat "$pid_file")
+    fi
+
+    if [ -z "$pid" ]; then
+        pid=$(pgrep -f "$target_bin" | head -n 1)
+    fi
+
+    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+        echo "Stopping $target_bin (PID: $pid)..."
+        kill "$pid" 2>/dev/null
+        rm -f "$pid_file"
+        echo "$target_bin stopped successfully."
+    else
+        echo "No running process found for protocol: $protocol"
+        rm -f "$pid_file"
+    fi
 }
 
 function status() {
-    # TODO: Only check for single server
-    :
+    local target_protocol=$1
+    local protocols=("telnet" "upnp" "mqtt" "coap")
+
+    if [ -n "$target_protocol" ]; then
+        protocols=("$target_protocol")
+    fi
+
+    printf "%-12s %-10s %-10s\n" "PROTOCOL" "PID" "STATUS"
+    printf "%-12s %-10s %-10s\n" "--------" "---" "------"
+
+    for proto in "${protocols[@]}"; do
+        local target_bin="${proto}_pit"
+        local pid_file="$PID_DIR/${proto}.pid"
+        local pid=""
+
+        if [ -f "$pid_file" ]; then
+            pid=$(cat "$pid_file")
+        fi
+
+        if [ -z "$pid" ] || ! kill -0 "$pid" 2>/dev/null; then
+            pid=$(pgrep -f "$target_bin" | head -n 1)
+        fi
+
+        if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+            printf "%-12s %-10s %-10s\n" "$proto" "$pid" "RUNNING"
+        else
+            printf "%-12s %-10s %-10s\n" "$proto" "N/A" "STOPPED"
+        fi
+    done
 }
 
 case "$1" in
@@ -157,7 +215,8 @@ case "$1" in
         stopServer "$1"
         ;;
     status)
-        status
+        shift
+        status "$1"
         ;;
     --help|-h|help)
         showHelp
